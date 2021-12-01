@@ -235,7 +235,7 @@ shake_hands(SV* peer_obj)
     OUTPUT:
         RETVAL
 
-int
+SV*
 write(SV* peer_obj, SV* bytes_sv)
     CODE:
         xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
@@ -243,18 +243,20 @@ write(SV* peer_obj, SV* bytes_sv)
         STRLEN outputlen;
         const char* output = SvPVbyte(bytes_sv, outputlen);
 
-        RETVAL = mbedtls_ssl_write(
+        int result = mbedtls_ssl_write(
             &mypeer->ssl,
             output,
             outputlen
         );
 
-        _verify_io_retval(aTHX_ RETVAL, mypeer, "write");
+        _verify_io_retval(aTHX_ result, mypeer, "write");
+
+        RETVAL = (result < 0) ? &PL_sv_undef : newSViv(result);
 
     OUTPUT:
         RETVAL
 
-int
+SV*
 read(SV* peer_obj, SV* output_sv)
     CODE:
         if (!SvOK(output_sv)) croak("Undef is nonsense!");
@@ -265,22 +267,24 @@ read(SV* peer_obj, SV* output_sv)
         const char* output = SvPVbyte(output_sv, outputlen);
         if (!outputlen) croak("Empty string is nonsense!");
 
-        RETVAL = mbedtls_ssl_read(
+        int result = mbedtls_ssl_read(
             &mypeer->ssl,
             output,
             outputlen
         );
 
-        if (RETVAL == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
+        if (result == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
             mypeer->notify_closed = true;
 
-            RETVAL = 0;
+            result = 0;
         }
         else {
             _verify_io_retval(aTHX_ RETVAL, mypeer, "read");
         }
 
         SvUTF8_off(output_sv);
+
+        RETVAL = (result < 0) ? &PL_sv_undef : newSViv(result);
 
     OUTPUT:
         RETVAL
