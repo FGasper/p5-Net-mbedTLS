@@ -42,4 +42,23 @@ Net::mbedTLS - L<mbedTLS|https://tls.mbed.org/> in Perl
 
 =cut
 
+sub new {
+    my ($classname, $chain_path) = @_;
+
+    $chain_path ||= do {
+        require Mozilla::CA;
+        Mozilla::CA::SSL_ca_file();
+    };
+
+    return _new($classname, $chain_path);
+}
+
+sub client {
+    my ($self, $socket, $servername) = @_;
+
+    require Net::mbedTLS::Client;
+
+    return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), $servername || ());
+}
+
 1;

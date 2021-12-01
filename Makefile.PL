@@ -17,12 +17,7 @@ WriteMakefile(
 
     INC => "-Wall -I. -I$mbedtls_build_dir/include",
 
-    OBJECT => [
-        '$(BASEEXT)$(OBJ_EXT)',
-        "$mbedtls_build_dir/library/libmbedcrypto.a",
-        "$mbedtls_build_dir/library/libmbedtls.a",
-        "$mbedtls_build_dir/library/libmbedx509.a",
-    ],
+    LIBS => "-Wl,-rpath,$mbedtls_build_dir/library -L$mbedtls_build_dir/library -lmbedcrypto -lmbedtls -lmbedx509",
 
     META_MERGE => {
         'meta-spec' => { version => 2 },
