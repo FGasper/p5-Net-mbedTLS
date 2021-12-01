@@ -1,0 +1,8 @@
+blib/
+*.bs
+*.c
+*.o
+MYMETA.*
+.*.sw?
+Makefile
+pm_to_blib
