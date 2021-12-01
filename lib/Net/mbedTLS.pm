@@ -42,6 +42,12 @@ Net::mbedTLS - L<mbedTLS|https://tls.mbed.org/> in Perl
 
 =cut
 
+#----------------------------------------------------------------------
+
+use Net::mbedTLS::X ();
+
+#----------------------------------------------------------------------
+
 sub new {
     my ($classname, $chain_path) = @_;
 
@@ -53,7 +59,7 @@ sub new {
     return _new($classname, $chain_path);
 }
 
-sub client {
+sub create_client {
     my ($self, $socket, $servername) = @_;
 
     require Net::mbedTLS::Client;

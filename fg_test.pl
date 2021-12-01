@@ -8,13 +8,34 @@ use IO::Socket::INET;
 
 my $tls = Net::mbedTLS->new();
 
-my $socket = IO::Socket::INET->new('cpanel.net:443');
+my $peername = 'cpanel.net';
 
-my $tlsclient = $tls->client($socket, 'cpanel.net');
+my $socket = IO::Socket::INET->new("$peername:80") or die;
+
+my $tlsclient = $tls->create_client($socket, $peername);
+
+use Data::Dumper;
+$Data::Dumper::Useqq = 1;
+
+print Dumper(
+    $tlsclient->ciphersuite(),
+    $tlsclient->max_out_record_payload(),
+    $tlsclient->tls_version_name(),
+    $tlsclient->peer_certificate(),
+);
 
 $tlsclient->shake_hands();
 
-$tlsclient->write("GET / HTTP/1.0\r\n\r\n");
+print Dumper(
+    $tlsclient->ciphersuite(),
+    $tlsclient->max_out_record_payload(),
+    $tlsclient->tls_version_name(),
+);
+
+use Crypt::Format;
+print Crypt::Format::der2pem($tlsclient->peer_certificate(), 'CERTIFICATE') . $/;
+
+$tlsclient->write("GET / HTTP/1.1\r\nHost: $peername\r\n\r\n");
 
 my $output = "\0" x 1024;
 

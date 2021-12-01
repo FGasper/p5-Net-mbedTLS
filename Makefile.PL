@@ -19,6 +19,8 @@ WriteMakefile(
 
     LIBS => "-Wl,-rpath,$mbedtls_build_dir/library -L$mbedtls_build_dir/library -lmbedcrypto -lmbedtls -lmbedx509",
 
+    PMLIBDIRS => ['lib'],
+
     META_MERGE => {
         'meta-spec' => { version => 2 },
         resources => {
