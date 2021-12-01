@@ -21,15 +21,18 @@ my ($wrote, $read_w, $write_w, $result);
 my $output = "\0" x 1024;
 my $bytes_in;
 
+my $payload_out = "GET / HTTP/1.1\r\nHost: $peername\r\n\r\n";
+my $payload_at = 0;
+
 while (1) {
-    if (!$wrote) {
-        $result = $tlsclient->write("GET / HTTP/1.1\r\nHost: $peername\r\n\r\n");
+    if ($payload_at < length($payload_out)) {
+        $result = $tlsclient->write(substr($payload_out, $payload_at));
 
         if (!$result) {
             _wait_as_needed($tlsclient, $socket);
         }
         else {
-            $wrote = 1;
+            $payload_at += $result;
         }
     }
     else {
