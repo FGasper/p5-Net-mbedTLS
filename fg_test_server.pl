@@ -80,7 +80,8 @@ my $socket = IO::Socket::INET->new(
     LocalAddr => "localhost:0",
 ) or die;
 
-printf "Listening on port %d …\n", $socket->sockport();
+printf "Listening on port %d; do:\n", $socket->sockport();
+printf "openssl s_client -debug -connect localhost:%d\n", $socket->sockport();
 
 my $peer = $socket->accept();
 
@@ -88,15 +89,17 @@ printf "Got connection!\n";
 
 my $tlsserver = $tls->create_server(
     $peer,
+    key_and_cert => [ PEM ],
     servername_cb => sub {
-        return (
-            Net::mbedTLS::SERVERNAME_CB_STRING,
-            PEM,
-        );
+        return PEM;
     },
 );
+
+print "made server\n";
 
 my $output = "\0" x 100;
 my $got = $tlsserver->read($output);
 
 print substr($output, 0, $got);
+
+$tlsserver->close_notify();

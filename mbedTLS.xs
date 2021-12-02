@@ -19,8 +19,8 @@
 #include <mbedtls/version.h>
 #include <mbedtls/x509.h>
 
-#define SERVERNAME_CB_STRING 1
-#define SERVERNAME_CB_PATH 2
+#define CERT_PEM_STRING 1
+#define CERT_PEM_PATH 2
 
 #define _MBEDTLS_PREFIX_LEN strlen("MBEDTLS_")
 
@@ -255,6 +255,63 @@ static inline void _load_trust_store_if_needed(pTHX_ xs_mbedtls* myconfig) {
 
 // ----------------------------------------------------------------------
 
+// Returns error string as Perl’s form():
+static char* _parse_key_and_cert_chain(pTHX_ xs_mbedtls* myconfig, SV** given, mbedtls_pk_context* pkey, mbedtls_x509_crt* crt) {
+
+    SV* cur = given[0];
+    assert(cur);
+
+    mbedtls_pk_init(pkey);
+
+    STRLEN pv_length;
+    const char* pv = SvPVbyte(cur, pv_length);
+
+    int result = mbedtls_pk_parse_key(
+        pkey,
+        (const unsigned char*) pv,
+        1 + pv_length,
+        NULL, 0, // passphrase
+        mbedtls_ctr_drbg_random,
+        &myconfig->ctr_drbg
+    );
+
+    if (result) {
+        mbedtls_pk_free(pkey);
+
+        char errstr[200];
+        mbedtls_strerror(result, errstr, sizeof(errstr));
+
+        return form("Failed to parse private key (%s)", errstr);
+    }
+
+    U8 g = given[1] ? 1 : 0;
+
+    mbedtls_x509_crt_init(crt);
+
+    while ( (cur = given[g++]) ) {
+        pv = SvPVbyte(cur, pv_length);
+
+        result = mbedtls_x509_crt_parse(
+            crt,
+            (const unsigned char*) pv,
+            1 + pv_length
+        );
+
+        if (result) {
+            mbedtls_x509_crt_free(crt);
+            mbedtls_pk_free(pkey);
+
+            char errstr[200];
+            mbedtls_strerror(result, errstr, sizeof(errstr));
+
+            return form("Failed to parse certificate chain (%s)", errstr);
+        }
+    }
+
+    // Success!
+    return NULL;
+}
+
 static int net_mbedtls_sni_callback(void *ctx, mbedtls_ssl_context *ssl, const unsigned char* sni, size_t snilen) {
 fprintf(stderr, "SNI callback (%.*s)\n", (int) snilen, sni);
     xs_server* myconn = ctx;
@@ -295,63 +352,27 @@ fprintf(stderr, "SNI callback (%.*s)\n", (int) snilen, sni);
         SP -= count;
         I32 ax = SP - PL_stack_base + 1;
 
-        switch (SvIV(ST(0))) {
-            case SERVERNAME_CB_STRING: {
-                if (count != 2) {
-                    warn("SNI callback for SERVERNAME_CB_STRING returned %d args; expected 2", count);
-                    goto end_sni_callback;
-                }
+        SV* key_and_chain[1 + count];
+        key_and_chain[count] = NULL;
+        Copy(&ST(0), key_and_chain, 1, SV*);
 
-                STRLEN pem_chain_length;
-                const char* pem_chain = SvPVbyte(ST(1), pem_chain_length);
+        // These will be re-allocated below:
+        mbedtls_pk_free(&myconn->pkey);
+        mbedtls_x509_crt_free(&myconn->crt);
 
-                mbedtls_pk_init(&myconn->pkey);
-                int result = mbedtls_pk_parse_key(
-                    &myconn->pkey,
-                    (const unsigned char*) pem_chain,
-                    1 + pem_chain_length,
-                    NULL, 0, // passphrase
-                    mbedtls_ctr_drbg_random,
-                    &myconfig->ctr_drbg
-                );
+        const char* err = _parse_key_and_cert_chain(
+            aTHX_
+            myconfig,
+            key_and_chain,
+            &myconn->pkey,
+            &myconn->crt
+        );
 
-                if (result) {
-                    mbedtls_pk_free(&myconn->pkey);
-
-                    char errstr[200];
-                    mbedtls_strerror(result, errstr, sizeof(errstr));
-
-                    warn("Failed to parse private key (%s) for %.*s:\n%.*s", errstr, (int) snilen, sni, (int) pem_chain_length, pem_chain);
-                    goto end_sni_callback;
-                }
-
-                mbedtls_x509_crt_init(&myconn->crt);
-                result = mbedtls_x509_crt_parse(
-                    &myconn->crt,
-                    (const unsigned char*) pem_chain,
-                    1 + pem_chain_length
-                );
-
-                if (result) {
-                    mbedtls_x509_crt_free(&myconn->crt);
-                    mbedtls_pk_free(&myconn->pkey);
-
-                    char errstr[200];
-                    mbedtls_strerror(result, errstr, sizeof(errstr));
-
-                    warn("Failed to parse certificates (%s) for %.*s:\n%.*s", errstr, (int) snilen, sni, (int) pem_chain_length, pem_chain);
-                    goto end_sni_callback;
-                }
-
-                break;
-            }
-
-            default:
-                warn("Unknown SNI callback return type: %" SVf, ST(0));
-                goto end_sni_callback;
+        if (err) {
+            warn( "SNI callback (%.*s) failure: %s", (int) snilen, sni, err );
+            goto end_sni_callback;
         }
 
-fprintf(stderr, "setting own cert\n");
         int result = mbedtls_ssl_set_hs_own_cert(ssl, &myconn->crt, &myconn->pkey);
         if (result) {
             mbedtls_x509_crt_free(&myconn->crt);
@@ -387,8 +408,8 @@ BOOT:
     _MBEDTLS_XS_CONSTANT(MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS);
     _MBEDTLS_XS_CONSTANT(MBEDTLS_ERR_SSL_CLIENT_RECONNECT);
 
-    _NET_MBEDTLS_XS_CONSTANT(SERVERNAME_CB_STRING);
-    _NET_MBEDTLS_XS_CONSTANT(SERVERNAME_CB_PATH);
+    _NET_MBEDTLS_XS_CONSTANT(CERT_PEM_STRING);
+    _NET_MBEDTLS_XS_CONSTANT(CERT_PEM_PATH);
 
 UV
 mbedtls_version_get_number()
@@ -598,6 +619,17 @@ peer_certificate (SV* peer_obj)
     OUTPUT:
         RETVAL
 
+int
+close_notify (SV* peer_obj)
+    CODE:
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
+
+        RETVAL = mbedtls_ssl_close_notify(&myconn->ssl);
+        _verify_io_retval(aTHX_ RETVAL, myconn, "close_notify");
+
+    OUTPUT:
+        RETVAL
+
 IV
 error (SV* peer_obj)
     CODE:
@@ -664,7 +696,7 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
 MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Server
 
 SV*
-_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* sni_cb)
+_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* own_cert_sv, SV* sni_cb)
     CODE:
         xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(mbedtls_obj) );
 
@@ -675,6 +707,29 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* sni_cb)
         SV* referent = SvRV(RETVAL);
 
         xs_server* myconn = (xs_server*) SvPVX(referent);
+
+        AV* own_cert_av = (AV*) SvRV(own_cert_sv);
+        unsigned own_cert_len = 1 + av_len(own_cert_av);
+        SV* own_cert[ 1 + own_cert_len ];
+        own_cert[own_cert_len] = NULL;
+        Copy(AvARRAY(own_cert_av), own_cert, own_cert_len, SV*);
+
+        mbedtls_x509_crt_init(&myconn->crt);
+        mbedtls_pk_init(&myconn->pkey);
+
+        const char* err = _parse_key_and_cert_chain(aTHX_
+            myconfig,
+            own_cert,
+            &myconn->pkey,
+            &myconn->crt
+        );
+
+        if (err) croak("%s", err);
+
+        int result = mbedtls_ssl_conf_own_cert (&myconn->conf, &myconn->crt, &myconn->pkey);
+        if (result) {
+            _mbedtls_err_croak(aTHX_ "assign key & certificate", result);
+        }
 
         if (SvOK(sni_cb)) {
             myconn->sni_cb = SvREFCNT_inc(sni_cb);
@@ -696,3 +751,13 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* sni_cb)
 
     OUTPUT:
         RETVAL
+
+void
+_DESTROY (SV* self_sv)
+    CODE:
+        SV* referent = SvRV(self_sv);
+
+        xs_server* myconn = (xs_server*) SvPVX(referent);
+
+        mbedtls_x509_crt_free(&myconn->crt);
+        mbedtls_pk_free(&myconn->pkey);

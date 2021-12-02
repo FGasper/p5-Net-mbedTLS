@@ -98,17 +98,17 @@ Initializes a server session on $SOCKET. %OPTS are:
 
 =item * C<servername_cb> (optional) - The callback to run once the
 client’s SNI string is received. It will receive the SNI string as
-argument, and it should return one of the following lists:
+argument, and it should return one of the following:
 
 =over
 
-=item * Empty, to abort the handshake
+=item * Empty: to abort the handshake
 
-=item * Net::mbedTLS::SERVERNAME_CB_STRING, then the key &
-certificate chain in a single concatenated-PEM string.
+=item * 1 scalar: A single PEM string that contains key & certificates.
 
-=item * Net::mbedTLS::SERVERNAME_CB_PATH, then a filesystem path to
-the same value as SERVERNAME_CB_STRING.
+=item * 2+ scalars: The key as its own string (PEM or DER), then the
+certificate chain as 1 or more additional scalars, each of which may be
+either a DER or PEM string. Any PEM may contain multiple documents.
 
 =back
 
@@ -119,9 +119,24 @@ the same value as SERVERNAME_CB_STRING.
 sub create_server {
     my ($self, $socket, %opts) = @_;
 
+    my @missing = grep { !$opts{$_} } (
+        'key_and_cert',
+    );
+
+    die "Missing: @missing" if @missing;
+
+    if ('ARRAY' ne ref $opts{'key_and_cert'}) {
+        require Carp;
+        Carp::croak("“key_and_cert” must be an ARRAY reference, not $opts{'key_and_cert'}");
+    }
+    if (!@{ $opts{'key_and_cert'} }) {
+        require Carp;
+        Carp::croak("“key_and_cert” must be nonempty");
+    }
+
     require Net::mbedTLS::Server;
 
-    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'servername_cb'});
+    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'key_and_cert'}, $opts{'servername_cb'});
 }
 
 #----------------------------------------------------------------------
