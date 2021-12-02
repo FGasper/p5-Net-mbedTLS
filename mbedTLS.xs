@@ -17,30 +17,56 @@
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
+#include <mbedtls/x509.h>
+
+#define SERVERNAME_CB_STRING 1
+#define SERVERNAME_CB_PATH 2
 
 #define _MBEDTLS_PREFIX_LEN strlen("MBEDTLS_")
 
+#define _XS_CONSTANT(name, value) \
+    newCONSTSUB(gv_stashpv("$Package", FALSE), name, value)
+
 #define _MBEDTLS_XS_CONSTANT(name) \
-    newCONSTSUB(gv_stashpv("$Package", FALSE), &#name[_MBEDTLS_PREFIX_LEN], newSViv(name))
+    _XS_CONSTANT(&#name[_MBEDTLS_PREFIX_LEN], newSViv(name))
+
+#define _NET_MBEDTLS_XS_CONSTANT(name) \
+    _XS_CONSTANT(#name, newSViv(name))
+
+// ----------------------------------------------------------------------
+#define _XS_CONNECTION_PARTS \
+    pid_t pid;                          \
+                                        \
+    mbedtls_net_context net_context;    \
+                                        \
+    mbedtls_ssl_config conf;            \
+    mbedtls_ssl_context ssl;            \
+                                        \
+    bool notify_closed;                 \
+                                        \
+    SV* perl_mbedtls;                   \
+    SV* perl_filehandle;                \
+                                        \
+    int error;
+
+// ----------------------------------------------------------------------
 
 typedef struct {
-#ifdef MULTIPLICITY
     pTHX;
-#endif
-    pid_t pid;
-
-    mbedtls_net_context net_context;
-
-    mbedtls_ssl_config conf;
-    mbedtls_ssl_context ssl;
-
-    bool notify_closed;
-
-    SV* perl_mbedtls;
-    SV* perl_filehandle;
-
-    int error;
+    _XS_CONNECTION_PARTS
 } xs_connection;
+
+typedef xs_connection xs_client;
+
+typedef struct {
+    pTHX;
+    _XS_CONNECTION_PARTS
+
+    SV* sni_cb;
+
+    mbedtls_pk_context  pkey;
+    mbedtls_x509_crt    crt;
+} xs_server;
 
 typedef struct {
     pid_t pid;
@@ -52,7 +78,7 @@ typedef struct {
 
     SV* trust_store_path_sv;
     bool trust_store_loaded;
-} xs_config;
+} xs_mbedtls;
 
 #define _warn_if_global_destruct(self_obj, mystruct) \
     if (PL_dirty && (mystruct->pid == getpid())) \
@@ -98,8 +124,8 @@ static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum ) {
     croak("Huh?? %s->%s() didn’t give anything?", _ERROR_FACTORY_CLASS, "create");
 }
 
-SV* _set_up_connection_object(pTHX_ xs_config* myconfig, const char* classname, int endpoint_type, SV* mbedtls_obj, SV* filehandle, int fd) {
-    SV* referent = newSV(sizeof(xs_connection));
+SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, const char* classname, int endpoint_type, SV* mbedtls_obj, SV* filehandle, int fd) {
+    SV* referent = newSV(struct_size);
     sv_2mortal(referent);
 
     xs_connection* myconn = (xs_connection*) SvPVX(referent);
@@ -202,7 +228,7 @@ static inline SV* _get_default_trust_store_path_sv(pTHX) {
     return sv_2mortal(ret);
 }
 
-static inline void _load_trust_store_if_needed(pTHX_ xs_config* myconfig) {
+static inline void _load_trust_store_if_needed(pTHX_ xs_mbedtls* myconfig) {
     if (!myconfig->trust_store_loaded) {
         assert(myconfig->trust_store_path_sv);
 
@@ -229,6 +255,127 @@ static inline void _load_trust_store_if_needed(pTHX_ xs_config* myconfig) {
 
 // ----------------------------------------------------------------------
 
+static int net_mbedtls_sni_callback(void *ctx, mbedtls_ssl_context *ssl, const unsigned char* sni, size_t snilen) {
+fprintf(stderr, "SNI callback (%.*s)\n", (int) snilen, sni);
+    xs_server* myconn = ctx;
+
+    SV* mbedtls_obj = myconn->perl_mbedtls;
+    xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX(mbedtls_obj);
+
+#ifdef MULTIPLICITY
+    pTHX = myconn->aTHX;
+#endif
+
+    SV* cb = myconn->sni_cb;
+
+    dSP;
+
+    ENTER;
+    SAVETMPS;
+
+    EXTEND(SP, 1);
+    mPUSHp((const char *) sni, snilen);
+    PUTBACK;
+
+    int count = call_sv(cb, G_ARRAY | G_EVAL);
+
+    SPAGAIN;
+
+    bool failed = true;
+
+    if (SvTRUE(ERRSV)) {
+        POPs;   // cf. perldoc perlcall
+        warn("SNI callback failed: %" SVf, ERRSV);
+        goto end_sni_callback;
+    }
+
+    if (count) {
+
+        // cf. perldoc perlcall:
+        SP -= count;
+        I32 ax = SP - PL_stack_base + 1;
+
+        switch (SvIV(ST(0))) {
+            case SERVERNAME_CB_STRING: {
+                if (count != 2) {
+                    warn("SNI callback for SERVERNAME_CB_STRING returned %d args; expected 2", count);
+                    goto end_sni_callback;
+                }
+
+                STRLEN pem_chain_length;
+                const char* pem_chain = SvPVbyte(ST(1), pem_chain_length);
+
+                mbedtls_pk_init(&myconn->pkey);
+                int result = mbedtls_pk_parse_key(
+                    &myconn->pkey,
+                    (const unsigned char*) pem_chain,
+                    1 + pem_chain_length,
+                    NULL, 0, // passphrase
+                    mbedtls_ctr_drbg_random,
+                    &myconfig->ctr_drbg
+                );
+
+                if (result) {
+                    mbedtls_pk_free(&myconn->pkey);
+
+                    char errstr[200];
+                    mbedtls_strerror(result, errstr, sizeof(errstr));
+
+                    warn("Failed to parse private key (%s) for %.*s:\n%.*s", errstr, (int) snilen, sni, (int) pem_chain_length, pem_chain);
+                    goto end_sni_callback;
+                }
+
+                mbedtls_x509_crt_init(&myconn->crt);
+                result = mbedtls_x509_crt_parse(
+                    &myconn->crt,
+                    (const unsigned char*) pem_chain,
+                    1 + pem_chain_length
+                );
+
+                if (result) {
+                    mbedtls_x509_crt_free(&myconn->crt);
+                    mbedtls_pk_free(&myconn->pkey);
+
+                    char errstr[200];
+                    mbedtls_strerror(result, errstr, sizeof(errstr));
+
+                    warn("Failed to parse certificates (%s) for %.*s:\n%.*s", errstr, (int) snilen, sni, (int) pem_chain_length, pem_chain);
+                    goto end_sni_callback;
+                }
+
+                break;
+            }
+
+            default:
+                warn("Unknown SNI callback return type: %" SVf, ST(0));
+                goto end_sni_callback;
+        }
+
+fprintf(stderr, "setting own cert\n");
+        int result = mbedtls_ssl_set_hs_own_cert(ssl, &myconn->crt, &myconn->pkey);
+        if (result) {
+            mbedtls_x509_crt_free(&myconn->crt);
+            mbedtls_pk_free(&myconn->pkey);
+
+            char errstr[200];
+            mbedtls_strerror(result, errstr, sizeof(errstr));
+
+            warn("Failed to assign key & certificate (%s)", errstr);
+            goto end_sni_callback;
+        }
+
+        failed = false;
+    }
+
+  end_sni_callback:
+    FREETMPS;
+    LEAVE;
+
+    return failed;
+}
+
+// ----------------------------------------------------------------------
+
 MODULE = Net::mbedTLS        PACKAGE = Net::mbedTLS
 
 PROTOTYPES: DISABLE
@@ -239,6 +386,9 @@ BOOT:
     _MBEDTLS_XS_CONSTANT(MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS);
     _MBEDTLS_XS_CONSTANT(MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS);
     _MBEDTLS_XS_CONSTANT(MBEDTLS_ERR_SSL_CLIENT_RECONNECT);
+
+    _NET_MBEDTLS_XS_CONSTANT(SERVERNAME_CB_STRING);
+    _NET_MBEDTLS_XS_CONSTANT(SERVERNAME_CB_PATH);
 
 UV
 mbedtls_version_get_number()
@@ -266,12 +416,12 @@ _new(SV* classname, SV* trust_store_path_sv = NULL)
         mbedtls_debug_set_threshold(4);
         int ret;
 
-        SV* referent = newSV(sizeof( xs_config));
+        SV* referent = newSV(sizeof( xs_mbedtls));
         sv_2mortal(referent);
 
-        xs_config* myconfig = (xs_config*) SvPVX(referent);
+        xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX(referent);
 
-        *myconfig = (xs_config) {
+        *myconfig = (xs_mbedtls) {
             .pid = getpid(),
             .trust_store_path_sv = trust_store_path_sv ? newSVsv(trust_store_path_sv) : NULL,
         };
@@ -302,7 +452,7 @@ _new(SV* classname, SV* trust_store_path_sv = NULL)
 void
 DESTROY(SV* self_obj)
     CODE:
-        xs_config* myconfig = (xs_config*) SvPVX( SvRV(self_obj) );
+        xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(self_obj) );
 
         _warn_if_global_destruct(self_obj, myconfig);
 
@@ -480,22 +630,60 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
     CODE:
         const char* servername = SvOK(servername_sv) ? SvPVbyte_nolen(servername_sv) : "";
 
-        xs_config* myconfig = (xs_config*) SvPVX( SvRV(mbedtls_obj) );
+        xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(mbedtls_obj) );
 
         _load_trust_store_if_needed(aTHX_ myconfig);
 
-        RETVAL = _set_up_connection_object(aTHX_ myconfig, classname, MBEDTLS_SSL_IS_CLIENT, mbedtls_obj, filehandle, fd);
+        RETVAL = _set_up_connection_object(aTHX_ myconfig, sizeof(xs_client), classname, MBEDTLS_SSL_IS_CLIENT, mbedtls_obj, filehandle, fd);
 
         SV* referent = SvRV(RETVAL);
 
-        xs_connection* myconn = (xs_connection*) SvPVX(referent);
-
-        mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
+        xs_client* myconn = (xs_client*) SvPVX(referent);
 
         int result = mbedtls_ssl_set_hostname(&myconn->ssl, servername);
 
         if (result) {
             _mbedtls_err_croak(aTHX_ "set SNI string", result);
+        }
+
+        mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
+
+        mbedtls_ssl_set_bio(
+            &myconn->ssl,
+            &myconn->net_context,
+            mbedtls_net_send,
+            mbedtls_net_recv,
+            mbedtls_net_recv_timeout
+        );
+
+    OUTPUT:
+        RETVAL
+
+# ----------------------------------------------------------------------
+
+MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Server
+
+SV*
+_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* sni_cb)
+    CODE:
+        xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(mbedtls_obj) );
+
+        _load_trust_store_if_needed(aTHX_ myconfig);
+
+        RETVAL = _set_up_connection_object(aTHX_ myconfig, sizeof(xs_server), classname, MBEDTLS_SSL_IS_SERVER, mbedtls_obj, filehandle, fd);
+
+        SV* referent = SvRV(RETVAL);
+
+        xs_server* myconn = (xs_server*) SvPVX(referent);
+
+        if (SvOK(sni_cb)) {
+            myconn->sni_cb = SvREFCNT_inc(sni_cb);
+
+            mbedtls_ssl_conf_sni(
+                &myconn->conf,
+                net_mbedtls_sni_callback,
+                myconn
+            );
         }
 
         mbedtls_ssl_set_bio(

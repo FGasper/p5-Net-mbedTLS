@@ -90,14 +90,27 @@ sub create_client {
     return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), $opts{'servername'});
 }
 
-=head2 $client = I<OBJ>->create_client( $SOCKET, %OPTS )
+=head2 $client = I<OBJ>->create_server( $SOCKET, %OPTS )
 
 Initializes a server session on $SOCKET. %OPTS are:
 
 =over
 
 =item * C<servername_cb> (optional) - The callback to run once the
-client’s SNI string is received.
+client’s SNI string is received. It will receive the SNI string as
+argument, and it should return one of the following lists:
+
+=over
+
+=item * Empty, to abort the handshake
+
+=item * Net::mbedTLS::SERVERNAME_CB_STRING, then the key &
+certificate chain in a single concatenated-PEM string.
+
+=item * Net::mbedTLS::SERVERNAME_CB_PATH, then a filesystem path to
+the same value as SERVERNAME_CB_STRING.
+
+=back
 
 =back
 
@@ -107,6 +120,33 @@ sub create_server {
     my ($self, $socket, %opts) = @_;
 
     require Net::mbedTLS::Server;
+
+    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'servername_cb'});
 }
+
+#----------------------------------------------------------------------
+
+=head1 CONSTANTS
+
+=over
+
+=item * C<ERR_SSL_WANT_READ>, C<ERR_SSL_WANT_WRITE>,
+C<ERR_SSL_ASYNC_IN_PROGRESS>, C<ERR_SSL_CRYPTO_IN_PROGRESS>,
+C<MBEDTLS_ERR_SSL_CLIENT_RECONNECT>: Like the corresponding values
+in mbedTLS.
+
+=item * C<SERVERNAME_CB_STRING>, C<SERVERNAME_CB_PATH>: See above.
+
+=back
+
+=cut
+
+#----------------------------------------------------------------------
+
+=head1 AUTHOR & COPYRIGHT
+
+Copyright 2021 Gasper Software Consulting.
+
+=cut
 
 1;
