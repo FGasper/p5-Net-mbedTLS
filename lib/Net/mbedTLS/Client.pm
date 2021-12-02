@@ -19,12 +19,12 @@ Net::mbedTLS::Client - Class representing a TLS client
 
 =head1 DESCRIPTION
 
-Subclass of L<Net::mbedTLS::Peer>.
+Subclass of L<Net::mbedTLS::Connection>.
 
 =cut
 
 #----------------------------------------------------------------------
 
-use parent 'Net::mbedTLS::Peer';
+use parent 'Net::mbedTLS::Connection';
 
 1;

@@ -48,23 +48,65 @@ use Net::mbedTLS::X ();
 
 #----------------------------------------------------------------------
 
+=head1 METHODS
+
+=head2 $obj = I<CLASS>->new( %OPTS )
+
+Instantiates this class. %OPTS are:
+
+=over
+
+=item * C<trust_store_path> (optional) - Filesystem path to the trust store
+(i.e., root certificates). If not given this module will use
+L<Mozilla::CA>’s trust store.
+
+=back
+
+=cut
+
 sub new {
-    my ($classname, $chain_path) = @_;
+    my ($classname, %opts) = @_;
 
-    $chain_path ||= do {
-        require Mozilla::CA;
-        Mozilla::CA::SSL_ca_file();
-    };
-
-    return _new($classname, $chain_path);
+    return _new($classname, $opts{'trust_store_path'});
 }
 
+=head2 $client = I<OBJ>->create_client( $SOCKET, %OPTS )
+
+Initializes a client session on $SOCKET. %OPTS are:
+
+=over
+
+=item * C<servername> (optional) - The SNI string to send in the handshake.
+
+=back
+
+=cut
+
 sub create_client {
-    my ($self, $socket, $servername) = @_;
+    my ($self, $socket, %opts) = @_;
 
     require Net::mbedTLS::Client;
 
-    return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), $servername || ());
+    return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), $opts{'servername'});
+}
+
+=head2 $client = I<OBJ>->create_client( $SOCKET, %OPTS )
+
+Initializes a server session on $SOCKET. %OPTS are:
+
+=over
+
+=item * C<servername_cb> (optional) - The callback to run once the
+client’s SNI string is received.
+
+=back
+
+=cut
+
+sub create_server {
+    my ($self, $socket, %opts) = @_;
+
+    require Net::mbedTLS::Server;
 }
 
 1;

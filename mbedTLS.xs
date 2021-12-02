@@ -40,7 +40,7 @@ typedef struct {
     SV* perl_filehandle;
 
     int error;
-} xs_peer;
+} xs_connection;
 
 typedef struct {
     pid_t pid;
@@ -59,6 +59,9 @@ typedef struct {
         warn("%s survived until global destruction!", SvPV_nolen(self_obj));
 
 #define _ERROR_FACTORY_CLASS "Net::mbedTLS" "::X"
+
+#define TRUST_STORE_MODULE "Mozilla::CA"
+#define TRUST_STORE_PATH_FUNCTION (TRUST_STORE_MODULE "::SSL_ca_file")
 
 // ----------------------------------------------------------------------
 
@@ -95,8 +98,13 @@ static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum ) {
     croak("Huh?? %s->%s() didn’t give anything?", _ERROR_FACTORY_CLASS, "create");
 }
 
-static inline void _initialize_xspeer( pTHX_ xs_peer *mypeer, int fd ) {
-    *mypeer = (xs_peer) {
+SV* _set_up_connection_object(pTHX_ xs_config* myconfig, const char* classname, int endpoint_type, SV* mbedtls_obj, SV* filehandle, int fd) {
+    SV* referent = newSV(sizeof(xs_connection));
+    sv_2mortal(referent);
+
+    xs_connection* myconn = (xs_connection*) SvPVX(referent);
+
+    *myconn = (xs_connection) {
         .net_context = {
             .fd = fd,
         },
@@ -108,11 +116,48 @@ static inline void _initialize_xspeer( pTHX_ xs_peer *mypeer, int fd ) {
         .aTHX = aTHX,
 #endif
     };
+
+    mbedtls_ssl_config_init( &myconn->conf );
+
+    int result = mbedtls_ssl_config_defaults(
+        &myconn->conf,
+        endpoint_type,
+        MBEDTLS_SSL_TRANSPORT_STREAM,
+        MBEDTLS_SSL_PRESET_DEFAULT
+    );
+
+    if (result) {
+        mbedtls_ssl_config_free( &myconn->conf );
+
+        _mbedtls_err_croak(aTHX_ "set up config", result);
+    }
+
+    mbedtls_ssl_conf_rng( &myconn->conf, mbedtls_ctr_drbg_random, &myconfig->ctr_drbg );
+
+    mbedtls_ssl_init( &myconn->ssl );
+
+    result = mbedtls_ssl_setup( &myconn->ssl, &myconn->conf );
+
+    if (result) {
+        mbedtls_ssl_config_free( &myconn->conf );
+        mbedtls_ssl_free( &myconn->ssl );
+
+        _mbedtls_err_croak(aTHX_ "set up TLS", result);
+    }
+
+    // Beyond here cleanup is identical to normal DESTROY:
+    SV* ret = newRV_inc(referent);
+    sv_bless(ret, gv_stashpv(classname, FALSE));
+
+    myconn->perl_mbedtls = SvREFCNT_inc(mbedtls_obj);
+    myconn->perl_filehandle = SvREFCNT_inc(filehandle);
+
+    return ret;
 }
 
-static inline void _verify_io_retval(pTHX_ int retval, xs_peer* mypeer, const char* msg) {
+static inline void _verify_io_retval(pTHX_ int retval, xs_connection* myconn, const char* msg) {
     if (retval < 0) {
-        mypeer->error = retval;
+        myconn->error = retval;
 
         switch (retval) {
             case MBEDTLS_ERR_SSL_WANT_READ:
@@ -130,9 +175,40 @@ static inline void _verify_io_retval(pTHX_ int retval, xs_peer* mypeer, const ch
     }
 }
 
+// Returns a MORTAL SV to the default trust store path.
+static inline SV* _get_default_trust_store_path_sv(pTHX) {
+    dSP;
+
+    load_module(
+        PERL_LOADMOD_NOIMPORT,
+        newSVpvs_flags(TRUST_STORE_MODULE, SVs_TEMP),
+        NULL
+    );
+
+    ENTER;
+    SAVETMPS;
+
+    int got = call_pv(TRUST_STORE_PATH_FUNCTION, G_SCALAR);
+
+    if (!got) croak("%s() returned nothing?!?", TRUST_STORE_PATH_FUNCTION);
+
+    SPAGAIN;
+
+    SV* ret = SvREFCNT_inc(POPs);
+
+    FREETMPS;
+    LEAVE;
+
+    return sv_2mortal(ret);
+}
+
 static inline void _load_trust_store_if_needed(pTHX_ xs_config* myconfig) {
     if (!myconfig->trust_store_loaded) {
         assert(myconfig->trust_store_path_sv);
+
+        if (!SvOK(myconfig->trust_store_path_sv)) {
+            sv_setsv(myconfig->trust_store_path_sv, _get_default_trust_store_path_sv(aTHX));
+        }
 
         mbedtls_x509_crt_init( &myconfig->cacert );
 
@@ -230,9 +306,14 @@ DESTROY(SV* self_obj)
 
         _warn_if_global_destruct(self_obj, myconfig);
 
-        if (myconfig->trust_store_path_sv) SvREFCNT_dec(myconfig->trust_store_path_sv);
+        if (myconfig->trust_store_path_sv) {
+            SvREFCNT_dec(myconfig->trust_store_path_sv);
+        }
 
-        mbedtls_x509_crt_free( &myconfig->cacert );
+        if (myconfig->trust_store_loaded) {
+            mbedtls_x509_crt_free( &myconfig->cacert );
+        }
+
         mbedtls_ctr_drbg_free( &myconfig->ctr_drbg );
         mbedtls_entropy_free( &myconfig->entropy );
 
@@ -240,16 +321,16 @@ DESTROY(SV* self_obj)
 
 # ----------------------------------------------------------------------
 
-MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Peer
+MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Connection
 
 bool
 shake_hands(SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        int result = mbedtls_ssl_handshake( &mypeer->ssl );
+        int result = mbedtls_ssl_handshake( &myconn->ssl );
 
-        _verify_io_retval(aTHX_ result, mypeer, "handshake");
+        _verify_io_retval(aTHX_ result, myconn, "handshake");
 
         RETVAL = !result;
 
@@ -259,18 +340,18 @@ shake_hands(SV* peer_obj)
 SV*
 write(SV* peer_obj, SV* bytes_sv)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
         STRLEN outputlen;
         const char* output = SvPVbyte(bytes_sv, outputlen);
 
         int result = mbedtls_ssl_write(
-            &mypeer->ssl,
+            &myconn->ssl,
             (unsigned char*) output,
             outputlen
         );
 
-        _verify_io_retval(aTHX_ result, mypeer, "write");
+        _verify_io_retval(aTHX_ result, myconn, "write");
 
         RETVAL = (result < 0) ? &PL_sv_undef : newSViv(result);
 
@@ -283,25 +364,25 @@ read(SV* peer_obj, SV* output_sv)
         if (!SvOK(output_sv)) croak("Undef is nonsense!");
         if (SvROK(output_sv)) croak("read() needs a plain scalar, not %s!", SvPVbyte_nolen(output_sv));
 
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
         STRLEN outputlen;
         const char* output = SvPVbyte(output_sv, outputlen);
         if (!outputlen) croak("Empty string is nonsense!");
 
         int result = mbedtls_ssl_read(
-            &mypeer->ssl,
+            &myconn->ssl,
             (unsigned char*) output,
             outputlen
         );
 
         if (result == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
-            mypeer->notify_closed = true;
+            myconn->notify_closed = true;
 
             result = 0;
         }
         else {
-            _verify_io_retval(aTHX_ result, mypeer, "read");
+            _verify_io_retval(aTHX_ result, myconn, "read");
         }
 
         SvUTF8_off(output_sv);
@@ -314,9 +395,9 @@ read(SV* peer_obj, SV* output_sv)
 bool
 closed(SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        RETVAL = mypeer->notify_closed;
+        RETVAL = myconn->notify_closed;
 
     OUTPUT:
         RETVAL
@@ -324,9 +405,9 @@ closed(SV* peer_obj)
 SV*
 ciphersuite (SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        const char* name = mbedtls_ssl_get_ciphersuite(&mypeer->ssl);
+        const char* name = mbedtls_ssl_get_ciphersuite(&myconn->ssl);
 
         RETVAL = name ? newSVpv(name, 0) : &PL_sv_undef;
 
@@ -336,9 +417,9 @@ ciphersuite (SV* peer_obj)
 int
 max_out_record_payload  (SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        RETVAL = mbedtls_ssl_get_max_out_record_payload(&mypeer->ssl);
+        RETVAL = mbedtls_ssl_get_max_out_record_payload(&myconn->ssl);
 
     OUTPUT:
         RETVAL
@@ -346,9 +427,9 @@ max_out_record_payload  (SV* peer_obj)
 SV*
 tls_version_name (SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        const char *name = mbedtls_ssl_get_version(&mypeer->ssl);
+        const char *name = mbedtls_ssl_get_version(&myconn->ssl);
 
         RETVAL = name ? newSVpv(name, 0) : &PL_sv_undef;
 
@@ -358,9 +439,9 @@ tls_version_name (SV* peer_obj)
 SV*
 peer_certificate (SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        const mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&mypeer->ssl);
+        const mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&myconn->ssl);
 
         RETVAL = crt ? newSVpv((const char*) crt->raw.p, crt->raw.len) : &PL_sv_undef;
 
@@ -370,9 +451,9 @@ peer_certificate (SV* peer_obj)
 IV
 error (SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        RETVAL = mypeer->error;
+        RETVAL = myconn->error;
 
     OUTPUT:
         RETVAL
@@ -380,82 +461,46 @@ error (SV* peer_obj)
 void
 DESTROY(SV* peer_obj)
     CODE:
-        xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
-        _warn_if_global_destruct(peer_obj, mypeer);
+        _warn_if_global_destruct(peer_obj, myconn);
 
-        mbedtls_ssl_config_free( &mypeer->conf );
-        mbedtls_ssl_free( &mypeer->ssl );
+        mbedtls_ssl_config_free( &myconn->conf );
+        mbedtls_ssl_free( &myconn->ssl );
 
-        SvREFCNT_dec(mypeer->perl_mbedtls);
-        SvREFCNT_dec(mypeer->perl_filehandle);
+        SvREFCNT_dec(myconn->perl_mbedtls);
+        SvREFCNT_dec(myconn->perl_filehandle);
 
 # ----------------------------------------------------------------------
 
 MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Client
 
 SV*
-_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servername_sv = NULL)
+_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servername_sv)
     CODE:
-        int ret;
-
-        const char* servername = servername_sv ? SvPVbyte_nolen(servername_sv) : "";
+        const char* servername = SvOK(servername_sv) ? SvPVbyte_nolen(servername_sv) : "";
 
         xs_config* myconfig = (xs_config*) SvPVX( SvRV(mbedtls_obj) );
 
         _load_trust_store_if_needed(aTHX_ myconfig);
 
-        SV* referent = newSV(sizeof(xs_peer));
-        sv_2mortal(referent);
+        RETVAL = _set_up_connection_object(aTHX_ myconfig, classname, MBEDTLS_SSL_IS_CLIENT, mbedtls_obj, filehandle, fd);
 
-        xs_peer* mypeer = (xs_peer*) SvPVX(referent);
-        _initialize_xspeer(aTHX_ mypeer, fd);
+        SV* referent = SvRV(RETVAL);
 
-        mbedtls_ssl_config_init( &mypeer->conf );
+        xs_connection* myconn = (xs_connection*) SvPVX(referent);
 
-        ret = mbedtls_ssl_config_defaults(
-            &mypeer->conf,
-            MBEDTLS_SSL_IS_CLIENT,
-            MBEDTLS_SSL_TRANSPORT_STREAM,
-            MBEDTLS_SSL_PRESET_DEFAULT
-        );
+        mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
 
-        if (ret) {
-            mbedtls_ssl_config_free( &mypeer->conf );
+        int result = mbedtls_ssl_set_hostname(&myconn->ssl, servername);
 
-            _mbedtls_err_croak(aTHX_ "Failed to set up config", ret);
-        }
-
-        mbedtls_ssl_conf_ca_chain( &mypeer->conf, &myconfig->cacert, NULL );
-        mbedtls_ssl_conf_rng( &mypeer->conf, mbedtls_ctr_drbg_random, &myconfig->ctr_drbg );
-
-        mbedtls_ssl_init( &mypeer->ssl );
-
-        ret = mbedtls_ssl_setup( &mypeer->ssl, &mypeer->conf );
-
-        if (ret) {
-            mbedtls_ssl_config_free( &mypeer->conf );
-            mbedtls_ssl_free( &mypeer->ssl );
-
-            _mbedtls_err_croak(aTHX_ "Failed to set up config", ret);
-        }
-
-        // Beyond here cleanup is identical to normal DESTROY:
-        RETVAL = newRV_inc(referent);
-        sv_bless(RETVAL, gv_stashpv(classname, FALSE));
-
-        mypeer->perl_mbedtls = SvREFCNT_inc(mbedtls_obj);
-        mypeer->perl_filehandle = SvREFCNT_inc(filehandle);
-
-        ret = mbedtls_ssl_set_hostname(&mypeer->ssl, servername);
-
-        if (ret) {
-            _mbedtls_err_croak(aTHX_ "Failed to set server hostname", ret);
+        if (result) {
+            _mbedtls_err_croak(aTHX_ "set SNI string", result);
         }
 
         mbedtls_ssl_set_bio(
-            &mypeer->ssl,
-            &mypeer->net_context,
+            &myconn->ssl,
+            &myconn->net_context,
             mbedtls_net_send,
             mbedtls_net_recv,
             mbedtls_net_recv_timeout

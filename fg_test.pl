@@ -12,7 +12,7 @@ my $peername = 'cpanel.net';
 
 my $socket = IO::Socket::INET->new("$peername:443") or die;
 
-my $tlsclient = $tls->create_client($socket, $peername);
+my $tlsclient = $tls->create_client($socket, servername => $peername);
 
 #use Data::Dumper;
 #$Data::Dumper::Useqq = 1;

@@ -1,4 +1,4 @@
-package Net::mbedTLS::Peer;
+package Net::mbedTLS::Connection;
 
 use strict;
 use warnings;
@@ -7,7 +7,7 @@ use warnings;
 
 =head1 NAME
 
-Net::mbedTLS::Peer - Abstract class representing a TLS peer
+Net::mbedTLS::Connection - Abstract class representing a TLS connection
 
 =head1 SYNOPSIS
 
@@ -21,7 +21,7 @@ Net::mbedTLS::Peer - Abstract class representing a TLS peer
 =head1 DESCRIPTION
 
 This class implements methods common to both server & client TLS
-roles.
+connections.
 
 =head1 METHODS: I/O
 

@@ -14,7 +14,7 @@ my $socket = IO::Socket::INET->new("$peername:443") or die;
 
 $socket->blocking(0);
 
-my $tlsclient = $tls->create_client($socket, $peername);
+my $tlsclient = $tls->create_client($socket, servername => $peername);
 
 my ($wrote, $read_w, $write_w, $result);
 
