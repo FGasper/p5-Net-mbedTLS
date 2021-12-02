@@ -1,3 +1,5 @@
+#pragma clang diagnostic ignored "-Wcompound-token-split-by-macro"
+
 #define PERL_NO_GET_CONTEXT
 #include "EXTERN.h"
 #include "perl.h"
@@ -6,6 +8,7 @@
 #include "ppport.h"
 
 #include <stdbool.h>
+#include <assert.h>
 
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/debug.h>
@@ -13,6 +16,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/error.h>
+#include <mbedtls/version.h>
 
 #define _MBEDTLS_PREFIX_LEN strlen("MBEDTLS_")
 
@@ -45,6 +49,9 @@ typedef struct {
 
     mbedtls_entropy_context entropy;
     mbedtls_ctr_drbg_context ctr_drbg;
+
+    SV* trust_store_path_sv;
+    bool trust_store_loaded;
 } xs_config;
 
 #define _warn_if_global_destruct(self_obj, mystruct) \
@@ -123,6 +130,27 @@ static inline void _verify_io_retval(pTHX_ int retval, xs_peer* mypeer, const ch
     }
 }
 
+static inline void _load_trust_store_if_needed(pTHX_ xs_config* myconfig) {
+    if (!myconfig->trust_store_loaded) {
+        assert(myconfig->trust_store_path_sv);
+
+        mbedtls_x509_crt_init( &myconfig->cacert );
+
+        char *path = SvPVbyte_nolen(myconfig->trust_store_path_sv);
+
+        int ret = mbedtls_x509_crt_parse_file(&myconfig->cacert, path);
+
+        if (ret) {
+            mbedtls_x509_crt_free( &myconfig->cacert );
+
+            char *msg = form("Read trust store (%s)", path);
+            _mbedtls_err_croak(aTHX_ msg, ret);
+        }
+
+        myconfig->trust_store_loaded = true;
+    }
+}
+
 // ----------------------------------------------------------------------
 
 MODULE = Net::mbedTLS        PACKAGE = Net::mbedTLS
@@ -148,8 +176,8 @@ char*
 mbedtls_version_get_string()
     CODE:
         // Per docs, this should be at least 9 bytes:
-        char versionstr[20] = { NULL };
-        (UV) mbedtls_version_get_string(versionstr);
+        char versionstr[20] = { 0 };
+        mbedtls_version_get_string(versionstr);
 
         RETVAL = versionstr;
 
@@ -157,7 +185,7 @@ mbedtls_version_get_string()
         RETVAL
 
 SV*
-_new(SV* classname, SV* chain_path = NULL)
+_new(SV* classname, SV* trust_store_path_sv = NULL)
     CODE:
         mbedtls_debug_set_threshold(4);
         int ret;
@@ -169,17 +197,8 @@ _new(SV* classname, SV* chain_path = NULL)
 
         *myconfig = (xs_config) {
             .pid = getpid(),
+            .trust_store_path_sv = trust_store_path_sv ? newSVsv(trust_store_path_sv) : NULL,
         };
-
-        mbedtls_x509_crt_init( &myconfig->cacert );
-
-        ret = mbedtls_x509_crt_parse_file(&myconfig->cacert, SvPVbyte_nolen(chain_path));
-
-        if (ret) {
-            mbedtls_x509_crt_free( &myconfig->cacert );
-
-            _mbedtls_err_croak(aTHX_ "Failed to read CA chain file", ret);
-        }
 
         mbedtls_ctr_drbg_init( &myconfig->ctr_drbg );
         mbedtls_entropy_init( &myconfig->entropy );
@@ -210,6 +229,8 @@ DESTROY(SV* self_obj)
         xs_config* myconfig = (xs_config*) SvPVX( SvRV(self_obj) );
 
         _warn_if_global_destruct(self_obj, myconfig);
+
+        if (myconfig->trust_store_path_sv) SvREFCNT_dec(myconfig->trust_store_path_sv);
 
         mbedtls_x509_crt_free( &myconfig->cacert );
         mbedtls_ctr_drbg_free( &myconfig->ctr_drbg );
@@ -245,7 +266,7 @@ write(SV* peer_obj, SV* bytes_sv)
 
         int result = mbedtls_ssl_write(
             &mypeer->ssl,
-            output,
+            (unsigned char*) output,
             outputlen
         );
 
@@ -260,6 +281,7 @@ SV*
 read(SV* peer_obj, SV* output_sv)
     CODE:
         if (!SvOK(output_sv)) croak("Undef is nonsense!");
+        if (SvROK(output_sv)) croak("read() needs a plain scalar, not %s!", SvPVbyte_nolen(output_sv));
 
         xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
 
@@ -269,7 +291,7 @@ read(SV* peer_obj, SV* output_sv)
 
         int result = mbedtls_ssl_read(
             &mypeer->ssl,
-            output,
+            (unsigned char*) output,
             outputlen
         );
 
@@ -279,7 +301,7 @@ read(SV* peer_obj, SV* output_sv)
             result = 0;
         }
         else {
-            _verify_io_retval(aTHX_ RETVAL, mypeer, "read");
+            _verify_io_retval(aTHX_ result, mypeer, "read");
         }
 
         SvUTF8_off(output_sv);
@@ -338,9 +360,9 @@ peer_certificate (SV* peer_obj)
     CODE:
         xs_peer* mypeer = (xs_peer*) SvPVX( SvRV(peer_obj) );
 
-        mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&mypeer->ssl);
+        const mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&mypeer->ssl);
 
-        RETVAL = crt ? newSVpv(crt->raw.p, crt->raw.len) : &PL_sv_undef;
+        RETVAL = crt ? newSVpv((const char*) crt->raw.p, crt->raw.len) : &PL_sv_undef;
 
     OUTPUT:
         RETVAL
@@ -380,6 +402,8 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
         const char* servername = servername_sv ? SvPVbyte_nolen(servername_sv) : "";
 
         xs_config* myconfig = (xs_config*) SvPVX( SvRV(mbedtls_obj) );
+
+        _load_trust_store_if_needed(aTHX_ myconfig);
 
         SV* referent = newSV(sizeof(xs_peer));
         sv_2mortal(referent);
