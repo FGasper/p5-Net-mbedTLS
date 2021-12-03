@@ -76,7 +76,46 @@ Performs a TLS handshake. Not strictly needed because C<read()> and
 C<write()> will automatically do the handshake “under the hood”, but
 if you want to know when the handshake is done this is still useful.
 
+The return is a boolean that indicates completion. If it’s falsy
+then the handshake isn’t done, and you’ll need to call this again
+once the underlying socket is ready for whatever mbedTLS wants. That
+should only happen for non-blocking sockets.
+
+Example non-blocking operation:
+
+    my $done;
+
+    until ($done = $tls->shake_hands()) {
+        vec( my $bitmask, fileno($socket), 1 ) = 1;
+
+        if ($tls->error() == Net::mbedTLS::ERR_SSL_WANT_READ) {
+            select $bitmask, undef, undef, undef;
+        }
+        if ($tls->error() == Net::mbedTLS::ERR_SSL_WANT_WRITE) {
+            select undef, $bitmask, undef, undef;
+        }
+        else { ... }
+    }
+
+=head2 $done = I<OBJ>->close_notify()
+
+Sends a TLS-level close notification. Should normally happen once
+you’re done using the connection.
+
+The return is as for C<shake_hands()>.
+
 =head1 METHODS: INTROSPECTION
+
+=head2 $num = I<OBJ>->error()
+
+The last error code from mbedTLS.
+
+=head2 $num = I<OBJ>->verification_result()
+
+Returns a bitmask that represents the peer certificate verification
+result. Possible bitmask values are the various C<X509_BADCERT_*>
+constants from L<Net::mbedTLS>.
+(See mbedTLS’s C<mbedtls_ssl_get_verify_result()>.)
 
 =head2 $str = I<OBJ>->tls_version_name()
 

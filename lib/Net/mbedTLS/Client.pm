@@ -11,9 +11,12 @@ Net::mbedTLS::Client - Class representing a TLS client
 
 =head1 SYNOPSIS
 
-    my $socket = IO::Socket::INET->new('perl.com:443');
+    my $socket = IO::Socket::INET->new('perl.com:443') or die;
 
-    my $tls = Net::mbedTLS->new()->create_client($socket, 'perl.com');
+    my $tls = Net::mbedTLS->new()->create_client(
+        $socket,
+        servername => 'perl.com',
+    );
 
 =cut
 
