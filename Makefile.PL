@@ -8,39 +8,50 @@ use ExtUtils::CBuilder;
 use ExtUtils::MakeMaker::CPANfile;
 use File::Temp;
 
-my @MBEDTLS_LIBS = qw(crypto tls x509);
+my $MBEDTLS_BASE = $ENV{'NET_MBEDTLS_MBEDTLS_BASE'};
+my $STATIC = ($ENV{'NET_MBEDTLS_LINKING'} || q<>) eq 'static';
 
-my $dynamic_base = $ENV{'NET_MBEDTLS_DYNAMIC_BASEDIR'};
+# Per mbedTLS docs, apparently the order matters:
+my @MBEDTLS_LIBS = qw(tls x509 crypto);
+my @dash_l = map { "-lmbed$_" } @MBEDTLS_LIBS;
 
 my @mbedtls_writemakefile_args;
 
 my @incdirs;
 
-if ($dynamic_base) {
-    @incdirs = "$dynamic_base/include";
+if ($MBEDTLS_BASE) {
+    print "Using mbedTLS from $MBEDTLS_BASE …$/";
 
-    # “library” is for mbedTLS’s source.
-    my ($libdir) = grep { "$dynamic_base/$_" } qw(lib library);
-    die "No libdir under $dynamic_base found!";
+    @incdirs = "$MBEDTLS_BASE/include";
 
-    my @dash_l = map { "-lmbed$_" } @MBEDTLS_LIBS;
+    if ($STATIC) {
+        #_make_mbedtls($mbedtls_build_dir);
 
-    @mbedtls_writemakefile_args = (
-        LIBS => "-Wl,-rpath,$libdir -L$libdir @dash_l",
-    );
+        @mbedtls_writemakefile_args = (
+            OBJECT => [
+                '$(BASEEXT)$(OBJ_EXT)',
+                map { "$MBEDTLS_BASE/library/libmbed$_.a" } @MBEDTLS_LIBS,
+            ],
+        );
+    }
+    else {
+
+        # “library” is for mbedTLS’s source.
+        my ($libdir) = grep { "$dynamic_base/$_" } qw(lib library);
+        die "No libdir under $dynamic_base found!";
+
+        @mbedtls_writemakefile_args = (
+            LIBS => "-Wl,-rpath,$libdir -L$libdir @dash_l",
+        );
+    }
 }
 else {
-    my $mbedtls_build_dir = "mbedtls";
+    print "Using system-installed mbedTLS …$/";
 
-    _make_mbedtls($mbedtls_build_dir);
-
-    @incdirs = "$mbedtls_build_dir/include";
+    die "Can’t build static with system mbedTLS!$/" if $STATIC;
 
     @mbedtls_writemakefile_args = (
-        OBJECT => [
-            '$(BASEEXT)$(OBJ_EXT)',
-            map { "$mbedtls_build_dir/library/libmbed$_.a" } @MBEDTLS_LIBS,
-        ],
+        LIBS => "@dash_l",
     );
 }
 
@@ -144,6 +155,39 @@ sub _determine_defines {
                     mbedtls_asn1_buf foo;
 
                     void *ptr = &foo.len;
+
+                    return 0;
+                }
+            ],
+        },
+
+        {
+            label => 'mbedtls_pk_parse_key(): 5 arguments',
+            define => 'PK_PARSE_KEY_5_ARGS',
+            c => q[
+                #include <mbedtls/pk.h>
+
+                int main() {
+                    int v = mbedtls_pk_parse_key(
+                        NULL, NULL, 0, NULL, 0
+                    );
+
+                    return 0;
+                }
+            ],
+        },
+
+        {
+            label => 'mbedtls_pk_parse_key(): 7 arguments',
+            define => 'PK_PARSE_KEY_7_ARGS',
+            c => q[
+                #include <mbedtls/pk.h>
+
+                int main() {
+                    int v = mbedtls_pk_parse_key(
+                        NULL, NULL, 0, NULL, 0,
+                        NULL, NULL
+                    );
 
                     return 0;
                 }

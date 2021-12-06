@@ -190,6 +190,14 @@ SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, co
 
     mbedtls_ssl_init( &myconn->ssl );
 
+    mbedtls_ssl_set_bio(
+        &myconn->ssl,
+        &myconn->net_context,
+        mbedtls_net_send,
+        mbedtls_net_recv,
+        mbedtls_net_recv_timeout
+    );
+
     result = mbedtls_ssl_setup( &myconn->ssl, &myconn->conf );
 
     if (result) {
@@ -263,6 +271,7 @@ static inline void _load_trust_store_if_needed(pTHX_ xs_mbedtls* myconfig) {
         if (!SvOK(myconfig->trust_store_path_sv)) {
             sv_setsv(myconfig->trust_store_path_sv, _get_default_trust_store_path_sv(aTHX));
         }
+sv_dump(myconfig->trust_store_path_sv);
 
         mbedtls_x509_crt_init( &myconfig->cacert );
 
@@ -302,9 +311,13 @@ static unsigned _parse_key_and_cert_chain(pTHX_ xs_mbedtls* myconfig, SV** given
         pkey,
         (const unsigned char*) pv,
         1 + pv_length,
-        NULL, 0, // passphrase
-        mbedtls_ctr_drbg_random,
-        &myconfig->ctr_drbg
+        NULL, 0 // passphrase
+#ifdef PK_PARSE_KEY_5_ARGS
+#elif defined PK_PARSE_KEY_7_ARGS
+        ,mbedtls_ctr_drbg_random
+        ,&myconfig->ctr_drbg
+#else
+#endif
     );
 
     if (*result) {
@@ -762,14 +775,6 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
 
         mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
 
-        mbedtls_ssl_set_bio(
-            &myconn->ssl,
-            &myconn->net_context,
-            mbedtls_net_send,
-            mbedtls_net_recv,
-            mbedtls_net_recv_timeout
-        );
-
     OUTPUT:
         RETVAL
 
@@ -830,14 +835,6 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* own_cer
                 myconn
             );
         }
-
-        mbedtls_ssl_set_bio(
-            &myconn->ssl,
-            &myconn->net_context,
-            mbedtls_net_send,
-            mbedtls_net_recv,
-            mbedtls_net_recv_timeout
-        );
 
     OUTPUT:
         RETVAL

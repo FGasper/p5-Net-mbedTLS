@@ -9,7 +9,7 @@ use IO::Socket::INET;
 my $tls = Net::mbedTLS->new();
 
 my $peername = 'cpanel.net';
-$peername = 'google.com';
+$peername = 'sectigo.com';
 
 my $socket = IO::Socket::INET->new("$peername:443") or die;
 
