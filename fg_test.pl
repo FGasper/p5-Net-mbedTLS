@@ -25,7 +25,7 @@ my $tlsclient = $tls->create_client($socket, servername => $peername);
 #    $tlsclient->peer_certificate(),
 #);
 #
-#$tlsclient->shake_hands();
+$tlsclient->shake_hands();
 #
 #print Dumper(
 #    $tlsclient->ciphersuite(),
@@ -33,8 +33,11 @@ my $tlsclient = $tls->create_client($socket, servername => $peername);
 #    $tlsclient->tls_version_name(),
 #);
 #
-#use Crypt::Format;
-#print Crypt::Format::der2pem($tlsclient->peer_certificate(), 'CERTIFICATE') . $/;
+use Crypt::Format;
+use Data::Dumper;
+for my $der ($tlsclient->peer_certificates()) {
+    print Crypt::Format::der2pem($der, 'CERTIFICATE') . $/;
+}
 
 $tlsclient->write("GET / HTTP/1.1\r\nHost: $peername\r\n\r\n");
 

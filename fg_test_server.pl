@@ -89,11 +89,13 @@ printf "Got connection!\n";
 
 my $tlsserver = $tls->create_server(
     $peer,
+
     key_and_cert => [ PEM ],
+
     servername_cb => sub {
         my $obj = shift;
 
-        $obj->set_own_key_and_certs_joined(PEM);
+        $obj->set_own_key_and_certs(PEM);
 
         return;
     },

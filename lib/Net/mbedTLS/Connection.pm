@@ -125,13 +125,15 @@ A string version of the negotiated TLS version (e.g., C<TLSv1.2>).
 
 A string that describes the TLS session’s negotiated cipher suite.
 
-=head2 $str = I<OBJ>->peer_certificate()
+=head2 @certs = I<OBJ>->peer_certificates()
 
-The peer’s certificate, in DER (i.e., binary) format.
+The peer’s certificate chain, in DER (i.e., binary) format.
 
 If you want PEM (Base64) you can use L<Crypt::Format>, e.g.:
 
     my $pem = Crypt::Format::der2pem($der, 'CERTIFICATE');
+
+This croaks if called outside list context.
 
 =head2 $num = I<OBJ>->max_out_record_payload()
 

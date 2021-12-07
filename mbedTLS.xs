@@ -61,7 +61,9 @@
 #define _NET_MBEDTLS_XS_CONSTANT(name) \
     _XS_CONSTANT(#name, newSViv(name))
 
-#define SNI_CB_CLASS "Net::mbedTLS::Server::SNICallbackCtx"
+#define PERL_NAMESPACE "Net::mbedTLS"
+
+#define SNI_CB_CLASS PERL_NAMESPACE "::Server::SNICallbackCtx"
 
 // ----------------------------------------------------------------------
 #define _XS_CONNECTION_PARTS \
@@ -114,7 +116,7 @@ typedef struct {
     if (PL_dirty && (mystruct->pid == getpid())) \
         warn("%s survived until global destruction!", SvPV_nolen(self_obj));
 
-#define _ERROR_FACTORY_CLASS "Net::mbedTLS" "::X"
+#define _ERROR_FACTORY_CLASS PERL_NAMESPACE "::X"
 
 #define TRUST_STORE_MODULE "Mozilla::CA"
 #define TRUST_STORE_PATH_FUNCTION (TRUST_STORE_MODULE "::SSL_ca_file")
@@ -368,8 +370,6 @@ SV* _create_sni_cb_ctx(pTHX_ SV* server_sv_referent, SV* servername) {
     mPUSHs(server_sv);
     mPUSHs(servername);
     PUTBACK;
-
-fprintf(stderr, "about to call\n");
 
     int count = call_method( "new", G_SCALAR );
 
@@ -684,17 +684,28 @@ tls_version_name (SV* peer_obj)
     OUTPUT:
         RETVAL
 
-SV*
-peer_certificate (SV* peer_obj)
-    CODE:
+void
+peer_certificates (SV* peer_obj)
+    PPCODE:
+        if (GIMME_V != G_ARRAY) croak("List context only!");
+
         xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
         const mbedtls_x509_crt* crt = mbedtls_ssl_get_peer_cert(&myconn->ssl);
 
-        RETVAL = crt ? newSVpv((const char*) crt->X509_CRT_RAW_MEMBER.X509_ASN1_P_MEMBER, crt->X509_CRT_RAW_MEMBER.X509_ASN1_LEN_MEMBER) : &PL_sv_undef;
+        int count = 0;
 
-    OUTPUT:
-        RETVAL
+        while (crt) {
+            SV* crt_sv = newSVpv(
+                (const char*) crt->X509_CRT_RAW_MEMBER.X509_ASN1_P_MEMBER,
+                crt->X509_CRT_RAW_MEMBER.X509_ASN1_LEN_MEMBER
+            );
+
+            XPUSHs(sv_2mortal(crt_sv));
+            count++;
+
+            crt = crt->next;
+        }
 
 U32
 verification_result (SV* peer_obj)

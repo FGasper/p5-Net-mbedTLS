@@ -41,18 +41,24 @@ This class defines an object given to C<servername_cb> coderefs
 
 Returns the servername the client gave in the TLS handshake.
 
-=head2 I<OBJ>->set_own_key_and_certs( $KEY, @CERTIFICATES )
+=head2 I<OBJ>->set_own_key_and_certs( @KEY_AND_CERTIFICATES )
 
 Sets the key and certificate chain that the TLS server will send
 to the client.
 
-Each item given here may be in PEM or DER format. Any @certs
-in PEM format may contain multiple certificates.
+@KEY_AND_CERTIFICATES may be:
 
-=head2 I<OBJ>->set_own_key_and_certs_joined( $KEY_AND_CERTIFICATES_PEM )
+=over
 
-Like C<set_own_key_and_certs()> but takes a single PEM string
-with the key and all certificates concatenated together.
+=item * 1 item: Concatenated PEM documents.
+
+=item * 2+ items: The key, then certificates. Any item may be in
+PEM or DER format, and any non-initial items (i.e., certificate items)
+may contain multiple certifictes.
+
+=back
+
+A L<Net::mbedTLS::X::mbedTLS> instance is thrown on failure.
 
 =head2 I<OBJ>->set_authmode( $AUTHMODE )
 
@@ -78,17 +84,11 @@ sub new {
 sub servername { $_[0][1] }
 
 sub set_own_key_and_certs {
-    my ($self, $key, @certs) = @_;
+    my ($self, @key_and_certs) = @_;
 
-    Carp::croak "Need certificates!";
+    Carp::croak "Need key and certificates!" if !@key_and_certs;
 
-    $self->[0]->_set_hs_own_cert($key, @certs);
-}
-
-sub set_own_key_and_certs_joined {
-    my ($self, $key_and_certs) = @_;
-
-    $self->[0]->_set_hs_own_cert($key_and_certs, $key_and_certs);
+    $self->[0]->_set_hs_own_cert($key, @key_and_certs);
 }
 
 1;

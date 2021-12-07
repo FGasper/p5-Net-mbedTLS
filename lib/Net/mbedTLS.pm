@@ -49,9 +49,9 @@ within Perl.
 
 =head1 AVAILABLE FUNCTIONALITY
 
-For now this just exposes the ability to do TLS. mbedTLS itself exposes
-a good deal more functionality (e.g., raw crypto); if you want that
-stuff, file a feature request.
+For now this largely just exposes the ability to do TLS. mbedTLS itself
+exposes a good deal more functionality (e.g., raw crypto); if you want
+that stuff, file a feature request.
 
 =head1 BUILDING/LINKING
 
@@ -144,22 +144,17 @@ L<Net::mbedTLS::Server> instance.
 =over
 
 =item * C<servername_cb> (optional) - The callback to run once the
-client’s SNI string is received. It will receive the SNI string as
-argument, and it should return one of the following:
+client’s SNI string is received. It will receive a
+L<Net::mbedTLS::Server::SNICallbackCtx> instance, which you can use
+to set the necessary parameters for the new TLS session.
 
-=over
+If an exception is thrown, a warning is created, and the TLS session
+is aborted.
 
-=item * Empty: to abort the handshake
+To abort the session without a warning, return -1.
 
-=item * 1 scalar: A single PEM string that contains key & certificates.
-
-=item * 2+ scalars: The key as its own string (PEM or DER), then the
-certificate chain as 1 or more additional scalars, each of which may be
-either a DER or PEM string. Any PEM may contain multiple documents.
-
-=back
-
-=back
+All other outcomes of this callback tell mbedTLS to continue the
+TLS handshake.
 
 =cut
 
@@ -190,14 +185,16 @@ sub create_server {
 
 =head1 CONSTANTS
 
+These come from mbedTLS:
+
 =over
 
-=item * C<ERR_SSL_WANT_READ>, C<ERR_SSL_WANT_WRITE>,
+=item * Error states: C<ERR_SSL_WANT_READ>, C<ERR_SSL_WANT_WRITE>,
 C<ERR_SSL_ASYNC_IN_PROGRESS>, C<ERR_SSL_CRYPTO_IN_PROGRESS>,
-C<MBEDTLS_ERR_SSL_CLIENT_RECONNECT>: Like the corresponding values
-in mbedTLS.
+C<MBEDTLS_ERR_SSL_CLIENT_RECONNECT>
 
-=item * C<SERVERNAME_CB_STRING>, C<SERVERNAME_CB_PATH>: See above.
+=item * Verify modes: C<SSL_VERIFY_NONE>, C<SSL_VERIFY_OPTIONAL>,
+C<SSL_VERIFY_REQUIRED>
 
 =back
 
