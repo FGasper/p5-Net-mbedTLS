@@ -273,7 +273,6 @@ static inline void _load_trust_store_if_needed(pTHX_ xs_mbedtls* myconfig) {
         if (!SvOK(myconfig->trust_store_path_sv)) {
             sv_setsv(myconfig->trust_store_path_sv, _get_default_trust_store_path_sv(aTHX));
         }
-sv_dump(myconfig->trust_store_path_sv);
 
         mbedtls_x509_crt_init( &myconfig->cacert );
 
@@ -363,11 +362,14 @@ SV* _create_sni_cb_ctx(pTHX_ SV* server_sv_referent, SV* servername) {
     ENTER;
     SAVETMPS;
 
+    PUSHMARK(SP);
     EXTEND(SP, 3);
     mPUSHs( newSVpvs( SNI_CB_CLASS ) );
     mPUSHs(server_sv);
     mPUSHs(servername);
     PUTBACK;
+
+fprintf(stderr, "about to call\n");
 
     int count = call_method( "new", G_SCALAR );
 
@@ -403,7 +405,8 @@ static int net_mbedtls_sni_callback(void *ctx, mbedtls_ssl_context *ssl, const u
     ENTER;
     SAVETMPS;
 
-    EXTEND(SP, 2);
+    PUSHMARK(SP);
+    EXTEND(SP, 1);
     mPUSHs(callback_ctx_obj);
     PUTBACK;
 

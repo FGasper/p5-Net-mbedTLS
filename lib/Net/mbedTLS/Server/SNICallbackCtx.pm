@@ -72,7 +72,7 @@ use Carp ();
 sub new {
     my ($class, $tls_server, $servername) = @_;
 
-    return bless [ $tls_server, $servername ], $_[0];
+    return bless( [ $tls_server, $servername ], $_[0] );
 }
 
 sub servername { $_[0][1] }

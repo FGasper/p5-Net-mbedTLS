@@ -9,6 +9,7 @@ lib/Net/mbedTLS.pm
 lib/Net/mbedTLS/Client.pm
 lib/Net/mbedTLS/Connection.pm
 lib/Net/mbedTLS/Server.pm
+lib/Net/mbedTLS/Server/SNICallbackCtx.pm
 lib/Net/mbedTLS/X.pm
 lib/Net/mbedTLS/X/Base.pm
 lib/Net/mbedTLS/X/mbedTLS.pm
