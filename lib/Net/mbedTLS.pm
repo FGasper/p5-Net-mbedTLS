@@ -40,6 +40,43 @@ Net::mbedTLS - L<mbedTLS|https://tls.mbed.org/> in Perl
         # ...
     };
 
+=head1 DESCRIPTION
+
+L<OpenSSL|https://openssl.org> is great, and so is L<Net::SSLeay>,
+its Perl binding. But sometimes you just want something small and simple.
+mbedTLS serves that purpose; this distribution makes it accessible from
+within Perl.
+
+=head1 AVAILABLE FUNCTIONALITY
+
+For now this just exposes the ability to do TLS. mbedTLS itself exposes
+a good deal more functionality (e.g., raw crypto); if you want that
+stuff, file a feature request.
+
+=head1 BUILDING/LINKING
+
+This library can link to mbedTLS in several ways:
+
+=over
+
+=item * Dynamic, to system library (default): This assumes that
+mbedTLS is available from some system-default location (e.g.,
+F</usr/local>).
+
+=item * Dynamic, to a specific path: To do this set
+C<NET_MBEDTLS_MBEDTLS_BASE> in your environment to whatever directory
+contains mbedTLS’s F<include> and F<lib> (or F<library>) directories.
+
+=item * Static, to a specific path: Like the previous one, but
+also set C<NET_MBEDTLS_LINKING> to C<static> in your environment.
+
+=back
+
+Dynamic linking allows Net::mbedTLS to use the most recent
+(compatible) mbedTLS but requires you to have a shared mbedTLS
+available, whereas static linking alleviates that dependency at the
+cost of always using the same library version.
+
 =cut
 
 #----------------------------------------------------------------------
@@ -60,6 +97,10 @@ Instantiates this class. %OPTS are:
 (i.e., root certificates). If not given this module will use
 L<Mozilla::CA>’s trust store.
 
+The trust store isn’t loaded until it’s needed, so if you don’t need
+to verify certificate chains (e.g., you’re only serving without
+TLS client authentication) you can safely omit this.
+
 =back
 
 =cut
@@ -72,7 +113,10 @@ sub new {
 
 =head2 $client = I<OBJ>->create_client( $SOCKET, %OPTS )
 
-Initializes a client session on $SOCKET. %OPTS are:
+Initializes a client session on $SOCKET. Returns a
+L<Net::mbedTLS::Client> instance.
+
+%OPTS are:
 
 =over
 
@@ -92,7 +136,10 @@ sub create_client {
 
 =head2 $client = I<OBJ>->create_server( $SOCKET, %OPTS )
 
-Initializes a server session on $SOCKET. %OPTS are:
+Initializes a server session on $SOCKET. Returns a
+L<Net::mbedTLS::Server> instance.
+
+%OPTS are:
 
 =over
 

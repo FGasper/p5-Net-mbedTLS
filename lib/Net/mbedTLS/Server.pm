@@ -43,6 +43,8 @@ Subclass of L<Net::mbedTLS::Connection>.
 
 use parent 'Net::mbedTLS::Connection';
 
+use Net::mbedTLS::Server::SNICallbackCtx;
+
 sub DESTROY {
     my $self = shift;
 

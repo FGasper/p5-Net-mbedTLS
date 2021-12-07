@@ -91,7 +91,11 @@ my $tlsserver = $tls->create_server(
     $peer,
     key_and_cert => [ PEM ],
     servername_cb => sub {
-        return PEM;
+        my $obj = shift;
+
+        $obj->set_own_key_and_certs_joined(PEM);
+
+        return;
     },
 );
 

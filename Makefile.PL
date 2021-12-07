@@ -20,6 +20,8 @@ my @mbedtls_writemakefile_args;
 my @incdirs;
 
 if ($MBEDTLS_BASE) {
+    $MBEDTLS_BASE = Cwd::abs_path($MBEDTLS_BASE);
+
     print "Using mbedTLS from $MBEDTLS_BASE …$/";
 
     @incdirs = "$MBEDTLS_BASE/include";
@@ -37,11 +39,16 @@ if ($MBEDTLS_BASE) {
     else {
 
         # “library” is for mbedTLS’s source.
-        my ($libdir) = grep { "$dynamic_base/$_" } qw(lib library);
-        die "No libdir under $dynamic_base found!";
+        my ($libdir) = grep { -e "$MBEDTLS_BASE/$_" } qw(lib library);
+        die "No libdir under $MBEDTLS_BASE found!" if !$libdir;
+
+        substr $libdir, 0, 0, "$MBEDTLS_BASE/";
+
+        print "Libs look like they’re at $libdir …$/";
 
         @mbedtls_writemakefile_args = (
-            LIBS => "-Wl,-rpath,$libdir -L$libdir @dash_l",
+            LIBS => "-L$libdir @dash_l",
+            LDDLFLAGS => "-Wl,-rpath,$libdir -L$libdir @dash_l $Config{lddlflags}",
         );
     }
 }
