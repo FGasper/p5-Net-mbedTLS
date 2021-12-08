@@ -49,9 +49,9 @@ within Perl.
 
 =head1 AVAILABLE FUNCTIONALITY
 
-For now this largely just exposes the ability to do TLS. mbedTLS itself
-exposes a good deal more functionality (e.g., raw crypto); if you want
-that stuff, file a feature request.
+For now this module largely just exposes the ability to do TLS. mbedTLS
+itself exposes a good deal more functionality (e.g., raw crypto,
+configurable ciphers); if you want that stuff, file a feature request.
 
 =head1 BUILDING/LINKING
 
