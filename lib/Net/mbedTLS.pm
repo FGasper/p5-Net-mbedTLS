@@ -162,23 +162,23 @@ sub create_server {
     my ($self, $socket, %opts) = @_;
 
     my @missing = grep { !$opts{$_} } (
-        'key_and_cert',
+        'key_and_certs',
     );
 
     die "Missing: @missing" if @missing;
 
-    if ('ARRAY' ne ref $opts{'key_and_cert'}) {
+    if ('ARRAY' ne ref $opts{'key_and_certs'}) {
         require Carp;
-        Carp::croak("“key_and_cert” must be an ARRAY reference, not $opts{'key_and_cert'}");
+        Carp::croak("“key_and_certs” must be an ARRAY reference, not $opts{'key_and_certs'}");
     }
-    if (!@{ $opts{'key_and_cert'} }) {
+    if (!@{ $opts{'key_and_certs'} }) {
         require Carp;
-        Carp::croak("“key_and_cert” must be nonempty");
+        Carp::croak("“key_and_certs” must be nonempty");
     }
 
     require Net::mbedTLS::Server;
 
-    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'key_and_cert'}, $opts{'servername_cb'});
+    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'key_and_certs'}, $opts{'servername_cb'});
 }
 
 #----------------------------------------------------------------------

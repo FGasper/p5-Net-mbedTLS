@@ -88,7 +88,7 @@ sub set_own_key_and_certs {
 
     Carp::croak "Need key and certificates!" if !@key_and_certs;
 
-    $self->[0]->_set_hs_own_cert($key, @key_and_certs);
+    $self->[0]->_set_hs_own_cert(@key_and_certs);
 }
 
 1;
