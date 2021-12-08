@@ -15,3 +15,4 @@ lib/Net/mbedTLS/X/Base.pm
 lib/Net/mbedTLS/X/mbedTLS.pm
 mbedTLS.xs
 ppport.h
+t/round_trip.t

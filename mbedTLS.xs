@@ -199,7 +199,7 @@ SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, co
         &myconn->net_context,
         mbedtls_net_send,
         mbedtls_net_recv,
-        mbedtls_net_recv_timeout
+        NULL
     );
 
     result = mbedtls_ssl_setup( &myconn->ssl, &myconn->conf );
@@ -762,7 +762,7 @@ DESTROY(SV* peer_obj)
 MODULE = Net::mbedTLS   PACKAGE = Net::mbedTLS::Client
 
 SV*
-_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servername_sv)
+_new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servername_sv, SV* authmode_sv)
     CODE:
         const char* servername = SvOK(servername_sv) ? SvPVbyte_nolen(servername_sv) : "";
 
@@ -783,6 +783,10 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
         }
 
         mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
+
+        if (SvOK(authmode_sv)) {
+            mbedtls_ssl_conf_authmode( &myconn->conf, SvIV(authmode_sv) );
+        }
 
     OUTPUT:
         RETVAL

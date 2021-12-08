@@ -24,7 +24,10 @@ $_->blocking(0) for ($cln, $srv);
 vec( my $cln_mask, fileno($cln), 1 ) = 1;
 vec( my $srv_mask, fileno($srv), 1 ) = 1;
 
-my $tls_cln = $mbedtls->create_client($cln);
+my $tls_cln = $mbedtls->create_client(
+    $cln,
+    authmode => Net::mbedTLS::SSL_VERIFY_NONE,
+);
 my $tls_srv = $mbedtls->create_server($srv,
     key_and_certs => [_PEM()],
 );
@@ -36,6 +39,13 @@ my $client_send_idx = 0;
 my $server_recv = "\0" x length $payload;
 my $server_recv_idx = 0;
 
+{
+    my $wrote = $tls_cln->write(substr($payload, $client_send_idx));
+
+    if ($wrote) {
+        $client_send_idx += $wrote;
+    }
+}
 
 while ($client_send_idx < length $payload) {
 diag "server reading";

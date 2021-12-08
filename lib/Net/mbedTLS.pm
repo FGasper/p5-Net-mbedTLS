@@ -122,6 +122,8 @@ L<Net::mbedTLS::Client> instance.
 
 =item * C<servername> (optional) - The SNI string to send in the handshake.
 
+=item * C<authmode> (optional) - One of this module’s C<SSL_VERIFY_*> constants. Defaults as in mbedTLS.
+
 =back
 
 =cut
@@ -131,7 +133,7 @@ sub create_client {
 
     require Net::mbedTLS::Client;
 
-    return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), $opts{'servername'});
+    return Net::mbedTLS::Client->_new($self, $socket, fileno($socket), @opts{'servername', 'authmode'});
 }
 
 =head2 $client = I<OBJ>->create_server( $SOCKET, %OPTS )
