@@ -588,6 +588,8 @@ _renegotiate(SV* peer_obj)
 SV*
 write(SV* peer_obj, SV* bytes_sv)
     CODE:
+        SvGETMAGIC(bytes_sv);
+
         xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
         STRLEN outputlen;
@@ -609,8 +611,8 @@ write(SV* peer_obj, SV* bytes_sv)
 SV*
 read(SV* peer_obj, SV* output_sv)
     CODE:
-        sv_dump(output_sv);
         SvGETMAGIC(output_sv);
+
         if (!SvOK(output_sv)) croak("Undef is nonsense!");
         if (SvROK(output_sv)) croak("read() needs a plain scalar, not %s!", SvPVbyte_nolen(output_sv));
 
@@ -619,14 +621,12 @@ read(SV* peer_obj, SV* output_sv)
         STRLEN outputlen;
         const char* output = SvPVbyte(output_sv, outputlen);
         if (!outputlen) croak("Empty string is nonsense!");
-    fprintf(stderr, "reading %d bytes\n", outputlen);
 
         int result = mbedtls_ssl_read(
             &myconn->ssl,
             (unsigned char*) output,
             outputlen
         );
-    fprintf(stderr, "did read\n");
 
         if (result == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY) {
             myconn->notify_closed = true;
@@ -638,6 +638,8 @@ read(SV* peer_obj, SV* output_sv)
         }
 
         SvUTF8_off(output_sv);
+
+        SvSETMAGIC(output_sv);
 
         RETVAL = (result < 0) ? &PL_sv_undef : newSViv(result);
 

@@ -32,38 +32,30 @@ my $tls_srv = $mbedtls->create_server($srv,
     key_and_certs => [_PEM()],
 );
 
-my $payload = join( q<>, map { rand } 1 .. 10 );
+my $payload = join( q<>, map { rand } 1 .. 10000 );
 
 my $client_send_idx = 0;
 
 my $server_recv = "\0" x length $payload;
 my $server_recv_idx = 0;
 
-{
-    my $wrote = $tls_cln->write(substr($payload, $client_send_idx));
+while ($server_recv_idx < length $payload) {
 
-    if ($wrote) {
-        $client_send_idx += $wrote;
+    if ($client_send_idx < length $payload) {
+        my $wrote = $tls_cln->write(substr($payload, $client_send_idx));
+
+        if ($wrote) {
+            $client_send_idx += $wrote;
+        }
     }
-}
 
-while ($client_send_idx < length $payload) {
-diag "server reading";
     my $got = $tls_srv->read( substr($server_recv, $server_recv_idx) );
     if ($got) {
         $server_recv_idx += $got;
     }
-
-diag "client writing";
-    my $wrote = $tls_cln->write(substr($payload, $client_send_idx));
-
-    if ($wrote) {
-        $client_send_idx += $wrote;
-    }
-
-diag "waiting for readability\n";
-    select( my $cc = ($cln_mask | $srv_mask), undef, undef, undef );
 }
+
+is($server_recv, $payload, 'sent payload');
 
 done_testing;
 
