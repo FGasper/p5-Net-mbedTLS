@@ -646,6 +646,16 @@ read(SV* peer_obj, SV* output_sv)
     OUTPUT:
         RETVAL
 
+SV*
+fh (SV* self_sv)
+    CODE:
+        xs_connection* myconn = (xs_connection*) SvPVX( SvRV(self_sv) );
+
+        RETVAL = SvREFCNT_inc(myconn->perl_filehandle);
+
+    OUTPUT:
+        RETVAL
+
 bool
 closed(SV* peer_obj)
     CODE:
