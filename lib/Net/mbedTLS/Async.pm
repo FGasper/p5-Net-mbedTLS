@@ -1,4 +1,4 @@
-package Net::mbedTLS::AnyEvent;
+package Net::mbedTLS::Async;
 
 use strict;
 use warnings;
@@ -7,6 +7,7 @@ use feature 'current_sub';
 
 use AnyEvent;
 use Promise::XS;
+use Scalar::Util;
 
 use Net::mbedTLS;
 
@@ -18,7 +19,7 @@ use constant {
     _MIN_IDX => 3,
 };
 
-sub adopt {
+sub new {
     my ($class, $tls) = @_;
 
     return bless [
@@ -43,20 +44,27 @@ sub shake_hands {
 
     my $tls = $self->[0];
 
+    my $weak_self = $self;
+    Scalar::Util::weaken($weak_self);
+
     sub {
+        my $sub = __SUB__;
+
         $d->reject($@) if !eval {
             if ( my $ok = $tls->shake_hands() ) {
                 $d->resolve();
             }
             else {
-                _handle_nonfatal_error($tls, __SUB__);
+                $weak_self->_handle_nonfatal_error($tls, $sub);
             }
 
             1;
         };
     }->();
 
-    return $d->promise();
+    return $d->promise()->finally(
+        sub { $self->_unset_event_listener() },
+    );
 }
 
 =head2 promise($count) = I<OBJ>->read_any( $OUTPUT_BUFFER )
@@ -96,7 +104,12 @@ sub _read {
     push @$read_queue_ar, [ $d, \$_[2], 0, $min ];
 
     if (@$read_queue_ar == 1) {
+        my $weak_self = $self;
+        Scalar::Util::weaken($weak_self);
+
         sub {
+            my $sub = __SUB__;
+
             my $ok = eval {
                 my $pos_sr = \$read_queue_ar->[0][_POS_IDX];
 
@@ -111,7 +124,7 @@ sub _read {
                     __SUB__->() if @$read_queue_ar;
                 }
                 else {
-                    $self->_handle_nonfatal_error($tls, __SUB__);
+                    $weak_self->_handle_nonfatal_error($tls, $sub);
                 }
 
                 1;
@@ -148,7 +161,12 @@ sub _write {
     push @$write_queue_ar, [ $d, $payload, 0, $min ];
 
     if (@$write_queue_ar == 1) {
+        my $weak_self = $self;
+        Scalar::Util::weaken($weak_self);
+
         sub {
+            my $sub = __SUB__;
+
             my $ok = eval {
                 my $pos_sr = \$write_queue_ar->[0][_POS_IDX];
 
@@ -163,7 +181,7 @@ sub _write {
                     __SUB__->() if @$write_queue_ar;
                 }
                 else {
-                    $self->_handle_nonfatal_error($tls, __SUB__);
+                    $weak_self->_handle_nonfatal_error($tls, $sub);
                 }
 
                 1;
@@ -180,19 +198,29 @@ sub _write {
 sub _handle_nonfatal_error {
     my ($self, $tls, $sub_cb) = @_;
 
+    die "need code ref" if !$sub_cb;
+
     my $fn = (caller 1)[3];
 
     if ($tls->error() eq Net::mbedTLS::ERR_SSL_WANT_READ) {
-        $self->_set_event_listener->($fn, 0, $sub_cb);
+        $self->_set_event_listener(0, $sub_cb);
     }
     elsif ($tls->error() eq Net::mbedTLS::ERR_SSL_WANT_WRITE) {
-        $self->_set_event_listener->($fn, 1, $sub_cb);
+        $self->_set_event_listener(1, $sub_cb);
     }
     else {
         die sprintf("$fn: Unknown mbedTLS error: %d", $tls->error());
     }
 }
 
+sub _unset_event_listener { }
+
 sub _TLS { $_[0][0] }
+
+sub DESTROY {
+    my ($self) = @_;
+
+    warn "DESTROYing $self at global destruction!\n" if ${^GLOBAL_PHASE} eq 'DESTRUCT';
+}
 
 1;

@@ -8,7 +8,7 @@ use AnyEvent;
 use parent 'Net::mbedTLS::Async';
 
 sub _set_event_listener {
-    my ($self, $fn, $is_write, $sub_cb) = @_;
+    my ($self, $is_write, $sub_cb) = @_;
 
     my $w;
 
