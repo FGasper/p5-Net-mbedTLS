@@ -141,4 +141,12 @@ The maximum outgoing record payload, in bytes.
 
 =cut
 
+sub tied_fh {
+    my ($self) = @_;
+
+    local ($@, $!);
+    require Net::mbedTLS::Connection::Tied;
+    return Net::mbedTLS::Connection::Tied->new($self);
+}
+
 1;
