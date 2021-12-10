@@ -21,10 +21,14 @@ my $tls = Net::mbedTLS->new()->create_client(
 
 my $fh = $tls->tied_fh();
 
-syswrite $fh, "GET / HTTP/1.0\r\n\r\n";
+printf {$fh} "%s", "GET / HTTP/1.0\r\n\r\n";
 
 my $buf;
+
+print getc $fh;
 
 while (sysread $fh, $buf, 512) {
     print $buf;
 }
+
+close $fh;

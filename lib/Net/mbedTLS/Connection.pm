@@ -18,10 +18,23 @@ Net::mbedTLS::Connection - Abstract class representing a TLS connection
     my $output = "\0" x 100;
     my $got = $tls->read($output);
 
+… or, to abstract over TLS in general:
+
+    my $fh = $tls->tied_fh();
+
+    print {$fh} "hey there\n";
+
 =head1 DESCRIPTION
 
 This class implements methods common to both server & client TLS
 connections.
+
+=head1 METHODS: General
+
+=head2 $fh = I<OBJ>->tied_fh()
+
+Returns a L<Net::mbedTLS::Connection::Tied> instance for I<OBJ>.
+See that module for details.
 
 =head1 METHODS: I/O
 
@@ -109,6 +122,11 @@ The return is as for C<shake_hands()>.
 =head2 $num = I<OBJ>->error()
 
 The last error code from mbedTLS.
+
+=head2 $fh = I<OBJ>->fh()
+
+A convenience method that returns the Perl filehandle from which you
+created I<OBJ>.
 
 =head2 $num = I<OBJ>->verification_result()
 

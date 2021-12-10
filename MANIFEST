@@ -10,6 +10,7 @@ lib/Net/mbedTLS/AnyEvent.pm
 lib/Net/mbedTLS/Async.pm
 lib/Net/mbedTLS/Client.pm
 lib/Net/mbedTLS/Connection.pm
+lib/Net/mbedTLS/Connection/Tied.pm
 lib/Net/mbedTLS/IOAsync.pm
 lib/Net/mbedTLS/Server.pm
 lib/Net/mbedTLS/Server/SNICallbackCtx.pm
@@ -21,3 +22,4 @@ ppport.h
 t/anyevent_handshake.t
 t/ioasync_handshake.t
 t/round_trip.t
+t/tied_handshake.t
