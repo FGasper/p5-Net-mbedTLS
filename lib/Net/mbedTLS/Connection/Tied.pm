@@ -44,7 +44,7 @@ use Symbol ();
 
 our $TLS_ERROR;
 
-use constant _DEBUG => 1;
+use constant _DEBUG => 0;
 
 #----------------------------------------------------------------------
 
