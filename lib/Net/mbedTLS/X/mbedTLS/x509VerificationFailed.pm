@@ -15,7 +15,7 @@ This class represents X.509 certificate verification failures
 from mbedTLS.
 
 It subclasses L<Net::mbedTLS::X::mbedTLS> and, in addition to
-the attribues that that class exposes, also exposes:
+the attributes that that class exposes, also exposes:
 
 =over
 
