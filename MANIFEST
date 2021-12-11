@@ -17,6 +17,7 @@ lib/Net/mbedTLS/Server/SNICallbackCtx.pm
 lib/Net/mbedTLS/X.pm
 lib/Net/mbedTLS/X/Base.pm
 lib/Net/mbedTLS/X/mbedTLS.pm
+lib/Net/mbedTLS/X/mbedTLS/x509VerificationFailed.pm
 mbedTLS.xs
 ppport.h
 t/anyevent_handshake.t

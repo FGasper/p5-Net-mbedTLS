@@ -34,7 +34,3 @@ while (sysread $fh, $buf, 512) {
 }
 
 close $fh;
-
-my $result = $tls->verification_result();
-
-print Net::mbedTLS::verify_info($result);
