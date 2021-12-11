@@ -123,7 +123,17 @@ typedef struct {
 
 // ----------------------------------------------------------------------
 
-static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum ) {
+static inline SV* _get_crt_verify_info_sv (pTHX_ U32 flags, const char* prefix) {
+    char buf[1024];
+
+    const char* myprefix = prefix ? prefix : "";
+
+    int len = mbedtls_x509_crt_verify_info(buf, sizeof(buf), myprefix, flags);
+
+    return newSVpvn(buf, len);
+}
+
+static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum, mbedtls_ssl_context* ssl ) {
     dSP;
 
     char errstr[200];
@@ -133,13 +143,23 @@ static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum ) {
     SAVETMPS;
 
     PUSHMARK(SP);
+
+    bool is_cert_verify_err = (errnum == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED);
+
     EXTEND(SP, 5);
 
     mPUSHs( newSVpvs(_ERROR_FACTORY_CLASS) );
-    mPUSHs( newSVpvs("mbedTLS") );
+    mPUSHs( is_cert_verify_err ? newSVpvs("mbedTLS::x509VerificationFailed") : newSVpvs("mbedTLS") );
     mPUSHs( newSVpv(action, 0) );
     mPUSHi(errnum);
     mPUSHs( newSVpv(errstr, 0) );
+
+    if (is_cert_verify_err) {
+        U32 flags = mbedtls_ssl_get_verify_result(ssl);
+        mPUSHu(flags);
+        mPUSHs( _get_crt_verify_info_sv( aTHX_ flags, NULL ) );
+    }
+
     PUTBACK;
 
     int retcount = call_method("create", G_SCALAR);
@@ -187,7 +207,7 @@ SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, co
     if (result) {
         mbedtls_ssl_config_free( &myconn->conf );
 
-        _mbedtls_err_croak(aTHX_ "set up config", result);
+        _mbedtls_err_croak(aTHX_ "set up config", result, NULL);
     }
 
     mbedtls_ssl_conf_rng( &myconn->conf, mbedtls_ctr_drbg_random, &myconfig->ctr_drbg );
@@ -208,7 +228,7 @@ SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, co
         mbedtls_ssl_config_free( &myconn->conf );
         mbedtls_ssl_free( &myconn->ssl );
 
-        _mbedtls_err_croak(aTHX_ "set up TLS", result);
+        _mbedtls_err_croak(aTHX_ "set up TLS", result, NULL);
     }
 
     // Beyond here cleanup is identical to normal DESTROY:
@@ -235,7 +255,7 @@ static inline void _verify_io_retval(pTHX_ int retval, xs_connection* myconn, co
 
             default: {
                 dTHX;
-                _mbedtls_err_croak(aTHX_ msg, retval);
+                _mbedtls_err_croak(aTHX_ msg, retval, &myconn->ssl);
             }
         }
     }
@@ -286,7 +306,7 @@ static inline void _load_trust_store_if_needed(pTHX_ xs_mbedtls* myconfig) {
             mbedtls_x509_crt_free( &myconfig->cacert );
 
             char *msg = form("Read trust store (%s)", path);
-            _mbedtls_err_croak(aTHX_ msg, ret);
+            _mbedtls_err_croak(aTHX_ msg, ret, NULL);
         }
 
         myconfig->trust_store_loaded = true;
@@ -494,6 +514,16 @@ mbedtls_version_get_string()
         RETVAL
 
 SV*
+verify_info (UV flags, SV* line_prefix=NULL)
+    CODE:
+        const char* prefix = line_prefix ? SvPVbyte_nolen(line_prefix) : NULL;
+
+        RETVAL = _get_crt_verify_info_sv(aTHX_ flags, prefix);
+
+    OUTPUT:
+        RETVAL
+
+SV*
 _new(SV* classname, SV* trust_store_path_sv = NULL)
     CODE:
         mbedtls_debug_set_threshold(4);
@@ -526,7 +556,7 @@ _new(SV* classname, SV* trust_store_path_sv = NULL)
         );
 
         if (ret) {
-            _mbedtls_err_croak(aTHX_ "Failed to seed random-number generator", ret);
+            _mbedtls_err_croak(aTHX_ "Failed to seed random-number generator", ret, NULL);
         }
 
     OUTPUT:
@@ -791,7 +821,7 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
         int result = mbedtls_ssl_set_hostname(&myconn->ssl, servername);
 
         if (result) {
-            _mbedtls_err_croak(aTHX_ "set SNI string", result);
+            _mbedtls_err_croak(aTHX_ "set SNI string", result, NULL);
         }
 
         mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
@@ -842,13 +872,14 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* own_cer
         if (parse_err) {
             _mbedtls_err_croak(aTHX_
                 (parse_err == 1) ? "parse key" : "parse certificate chain",
-                result
+                result,
+                NULL
             );
         }
 
         result = mbedtls_ssl_conf_own_cert (&myconn->conf, &myconn->crt, &myconn->pkey);
         if (result) {
-            _mbedtls_err_croak(aTHX_ "assign key & certificate", result);
+            _mbedtls_err_croak(aTHX_ "assign key & certificate", result, NULL);
         }
 
         if (SvOK(sni_cb)) {
@@ -897,7 +928,8 @@ _set_hs_own_cert (SV* self_sv, SV* key_sv, ...)
         if (errtype) {
             _mbedtls_err_croak( aTHX_
                 (errtype == 1) ? "parse key" : "parse certificate chain",
-                result
+                result,
+                NULL
             );
         }
 
@@ -908,7 +940,8 @@ _set_hs_own_cert (SV* self_sv, SV* key_sv, ...)
 
             _mbedtls_err_croak( aTHX_
                 "assign key & certificate",
-                result
+                result,
+                NULL
             );
         }
 

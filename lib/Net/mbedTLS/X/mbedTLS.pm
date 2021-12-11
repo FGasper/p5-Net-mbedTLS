@@ -13,7 +13,7 @@ Net::mbedTLS::X::mbedTLS
 
 This class represents fatal errors from mbedTLS.
 
-It subclasses L<X::Tiny::Base> and exposes two C<get()>table
+It subclasses L<Net::mbedTLS::X::Base> and exposes two C<get()>table
 attributes:
 
 =over
@@ -31,9 +31,20 @@ attributes:
 use parent qw( Net::mbedTLS::X::Base );
 
 sub _new {
+    my ($class, $action, $num, $str, @others) = @_;
+
+    my ($phrase, @other_args) = $class->_mbedtls_new($action, $num, $str, @others);
+
+    return $class->SUPER::_new($phrase,
+        number => $num, string => $str,
+        @other_args,
+    );
+}
+
+sub _mbedtls_new {
     my ($class, $action, $num, $str) = @_;
 
-    return $class->SUPER::_new("mbedTLS failure ($action) $num: $str", number => $num, string => $str);
+    return "mbedTLS failure ($action) $num: $str";
 }
 
 1;

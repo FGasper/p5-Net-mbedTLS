@@ -22,30 +22,34 @@ Net::mbedTLS - L<mbedTLS|https://tls.mbed.org/> in Perl
 
     my $fh = IO::Socket::INET->new("example.com:12345");
 
-    my $tls = Net::mbedTLS::Client->new($fh);
+    my $mbedtls = Net::mbedTLS->new();
+
+    my $client = $mbedtls->create_client($fh);
 
     # Optional, but useful to do separately if, e.g., you want
     # to report a successful handshake.
-    $tls->handshake();
+    $client->shake_hands();
 
     # Throws if the error is an “unexpected” one:
-    my $got = $tls->read(23) // do {
+    my $input = "\0" x 23;
+    my $got = $client->read($input) // do {
 
         # We get here if, e.g., the socket is non-blocking and we
         # weren’t ready to read.
     };
 
     # Similar to read(); throws on “unexpected” errors:
-    $wrote = $tls->write($byte_string) // do {
+    my $wrote = $tls->write($byte_string) // do {
         # ...
     };
 
 =head1 DESCRIPTION
 
 L<OpenSSL|https://openssl.org> is great, and so is L<Net::SSLeay>,
-its Perl binding. But sometimes you just want something small and simple.
-mbedTLS serves that purpose; this distribution makes it accessible from
-within Perl.
+its Perl binding. Both are rather large, though.
+
+This distribution allows use of mbedTLS, a smaller, simpler TLS library,
+from Perl.
 
 =head1 AVAILABLE FUNCTIONALITY
 
@@ -93,8 +97,8 @@ Instantiates this class. %OPTS are:
 
 =over
 
-=item * C<trust_store_path> (optional) - Filesystem path to the trust store
-(i.e., root certificates). If not given this module will use
+=item * C<trust_store_path> (optional) - Filesystem path to the trust
+store (i.e., root certificates). If not given this module will use
 L<Mozilla::CA>’s trust store.
 
 The trust store isn’t loaded until it’s needed, so if you don’t need
@@ -180,7 +184,11 @@ sub create_server {
 
     require Net::mbedTLS::Server;
 
-    return Net::mbedTLS::Server->_new($self, $socket, fileno($socket), $opts{'key_and_certs'}, $opts{'servername_cb'});
+    return Net::mbedTLS::Server->_new(
+        $self,
+        $socket, fileno($socket),
+        @opts{'key_and_certs', 'servername_cb'},
+    );
 }
 
 #----------------------------------------------------------------------

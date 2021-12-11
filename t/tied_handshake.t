@@ -10,13 +10,15 @@ use Net::mbedTLS;
 
 use IO::Socket::INET ();
 
-my $socket = IO::Socket::INET->new('example.com:443') or do {
+my $servername = 'example.com';
+
+my $socket = IO::Socket::INET->new("$servername:443") or do {
     plan skip_all => "Connect failed: $!";
 };
 
 my $tls = Net::mbedTLS->new()->create_client(
     $socket,
-    authmode => Net::mbedTLS::SSL_VERIFY_NONE,
+    servername => $servername,
 );
 
 my $fh = $tls->tied_fh();
@@ -32,3 +34,7 @@ while (sysread $fh, $buf, 512) {
 }
 
 close $fh;
+
+my $result = $tls->verification_result();
+
+print Net::mbedTLS::verify_info($result);
