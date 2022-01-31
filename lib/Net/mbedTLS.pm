@@ -82,6 +82,11 @@ Dynamic linking allows Net::mbedTLS to use the most recent
 available, whereas static linking alleviates that dependency at the
 cost of always using the same library version.
 
+mbedTLS, alas, as of this writing does not support
+L<pkg-config|https://www.freedesktop.org/wiki/Software/pkg-config/>.
+(L<GitHub issue|https://github.com/ARMmbed/mbedtls/issues/228>) If that
+changes then dynamic linking will become more reliable.
+
 =cut
 
 #----------------------------------------------------------------------

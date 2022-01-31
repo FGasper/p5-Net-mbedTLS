@@ -1,10 +1,11 @@
 .gitignore
 MANIFEST
 Makefile.PL
+README.md
 cpanfile
-fg_test.pl
-fg_test_async.pl
-fg_test_server.pl
+examples/test.pl
+examples/test_async.pl
+examples/test_server.pl
 lib/Net/mbedTLS.pm
 lib/Net/mbedTLS/AnyEvent.pm
 lib/Net/mbedTLS/Async.pm
