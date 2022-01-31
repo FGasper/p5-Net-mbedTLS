@@ -13,8 +13,9 @@ use Socket;
 use Benchmark;
 
 use Net::SSLeay;
+$Net::SSLeay::trace = 3;
+
 Net::SSLeay::initialize();
-$Net::SSLeay::trace = 2;
 
 use File::Temp;
 my ($fh, $pem_path) = File::Temp::tempfile( CLEANUP => 1 );
@@ -29,13 +30,15 @@ $mbedtls->create_client(\*STDOUT);
 printf Net::SSLeay::SSLeay_version() . $/;
 printf "mbedTLS %s$/", Net::mbedTLS::mbedtls_version_get_string();
 
+my $cln_ctx = Net::SSLeay::CTX_new() or die "ERROR: CTX_new failed";
+Net::SSLeay::CTX_load_verify_locations($cln_ctx, Mozilla::CA::SSL_ca_file(), q<>);
+
 Benchmark::cmpthese(
-    500,
+    1,
     {
         openssl => sub {
             my ($cln, $srv);
 
-            my $cln_ctx = Net::SSLeay::CTX_new() or die "ERROR: CTX_new failed";
             my $srv_ctx = Net::SSLeay::CTX_new() or die "ERROR: CTX_new failed";
             Net::SSLeay::set_cert_and_key($srv_ctx, $pem_path, $pem_path);
 
@@ -69,24 +72,29 @@ Benchmark::cmpthese(
         },
 
         mbedtls => sub {
+return;
             my ($cln_skt, $srv_skt);
 
             socketpair $cln_skt, $srv_skt, AF_UNIX, SOCK_STREAM, 0;
 
             $_->blocking(0) for ($cln_skt, $srv_skt);
 
+Net::mbedTLS::set_debug_threshold(2);
             my $cln = $mbedtls->create_client(
                 $cln_skt,
                 authmode => Net::mbedTLS::SSL_VERIFY_NONE,
             );
+Net::mbedTLS::set_debug_threshold(0);
             my $srv = $mbedtls->create_server(
                 $srv_skt,
                 key_and_certs => [_PEM()],
             );
+Net::mbedTLS::set_debug_threshold(2);
 
             for (1 .. 10) {
                 return if $cln->shake_hands();
                 return if $srv->shake_hands();
+print "====== end of iteration\n";
 #                $cln->shake_hands() and do {
 #                    print $cln->ciphersuite() . $/;
 #                    return;

@@ -56,6 +56,7 @@ from Perl.
 For now this module largely just exposes the ability to do TLS. mbedTLS
 itself exposes a good deal more functionality (e.g., raw crypto,
 configurable ciphers); if you want that stuff, file a feature request.
+(Ideally send a patch.)
 
 =head1 BUILDING/LINKING
 
@@ -86,6 +87,8 @@ cost of always using the same library version.
 #----------------------------------------------------------------------
 
 use Net::mbedTLS::X ();
+
+our $DEBUG;
 
 #----------------------------------------------------------------------
 

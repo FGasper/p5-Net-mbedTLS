@@ -78,6 +78,7 @@
                                         \
     SV* perl_mbedtls;                   \
     SV* perl_filehandle;                \
+    SV* perl_debug_cb;                  \
                                         \
     int error;
 
@@ -120,6 +121,11 @@ typedef struct {
 
 #define TRUST_STORE_MODULE "Mozilla::CA"
 #define TRUST_STORE_PATH_FUNCTION (TRUST_STORE_MODULE "::SSL_ca_file")
+
+// ----------------------------------------------------------------------
+
+// Global state is regrettable, but no less so than mbedTLS’s own:
+static IV mbedtls_debug_threshold = 0;
 
 // ----------------------------------------------------------------------
 
@@ -176,6 +182,54 @@ static inline void _mbedtls_err_croak( pTHX_ const char* action, int errnum, mbe
     croak("Huh?? %s->%s() didn’t give anything?", _ERROR_FACTORY_CLASS, "create");
 }
 
+/*
+void
+fg_Perl_free_tmps(pTHX)
+{
+    // XXX should tmps_floor live in cxstack?
+    const SSize_t myfloor = PL_tmps_floor;
+    while (PL_tmps_ix > myfloor) {      // clean up after last statement
+        SV* const sv = PL_tmps_stack[PL_tmps_ix--];
+#ifdef PERL_POISON
+        PoisonWith(PL_tmps_stack + PL_tmps_ix + 1, 1, SV *, 0xAB);
+#endif
+        if (LIKELY(sv)) {
+            SvTEMP_off(sv);
+            SvREFCNT_dec_NN(sv);		// note, can modify tmps_ix!!!
+        }
+    }
+}
+
+void _dump_tmps(pTHX) {
+    fprintf(stderr, "=====> DUMP TMPS:\n");
+    const SSize_t myfloor = PL_tmps_floor;
+    SSize_t ix = PL_tmps_ix;
+    while (ix > myfloor) {
+        fprintf(stderr, "ix=%zd: %p\n", ix, PL_tmps_stack[ix]);
+
+        SV* const sv = PL_tmps_stack[ix--];
+        if (LIKELY(sv)) {
+            sv_dump(sv);
+        }
+    }
+    fprintf(stderr, "\t=====> DONE DUMP TMPS\n");
+}
+*/
+
+static const char* DEBUG_LEVEL_NAME[] = {
+    NULL,
+    "error",
+    "warn",
+    "info",
+    "debug",
+};
+
+static void _my_debug (void *ctx, int level, const char *file, int line, const char *str) {
+    const char *slash = strrchr(file, '/');
+    const char *pos = slash ? (slash + 1) : file;
+    fprintf(stderr, "%s (%s:%d): %s", DEBUG_LEVEL_NAME[level], pos, line, str);
+}
+
 SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, const char* classname, int endpoint_type, SV* mbedtls_obj, SV* filehandle, int fd) {
     SV* referent = newSV(struct_size);
     sv_2mortal(referent);
@@ -208,6 +262,11 @@ SV* _set_up_connection_object(pTHX_ xs_mbedtls* myconfig, size_t struct_size, co
         mbedtls_ssl_config_free( &myconn->conf );
 
         _mbedtls_err_croak(aTHX_ "set up config", result, NULL);
+    }
+
+    if (mbedtls_debug_threshold) {
+printf("======= setting debug\n");
+        mbedtls_ssl_conf_dbg(&myconn->conf, _my_debug, NULL);
     }
 
     mbedtls_ssl_conf_rng( &myconn->conf, mbedtls_ctr_drbg_random, &myconfig->ctr_drbg );
@@ -267,7 +326,7 @@ static inline SV* _get_default_trust_store_path_sv(pTHX) {
 
     load_module(
         PERL_LOADMOD_NOIMPORT,
-        newSVpvs_flags(TRUST_STORE_MODULE, SVs_TEMP),
+        newSVpvs(TRUST_STORE_MODULE),
         NULL
     );
 
@@ -513,6 +572,12 @@ mbedtls_version_get_string()
     OUTPUT:
         RETVAL
 
+void
+set_debug_threshold(IV threshold)
+    CODE:
+        mbedtls_debug_threshold = threshold;
+        mbedtls_debug_set_threshold(threshold);
+
 SV*
 verify_info (UV flags, SV* line_prefix=NULL)
     CODE:
@@ -526,10 +591,10 @@ verify_info (UV flags, SV* line_prefix=NULL)
 SV*
 _new(SV* classname, SV* trust_store_path_sv = NULL)
     CODE:
-        mbedtls_debug_set_threshold(4);
         int ret;
 
-        SV* referent = newSV(sizeof( xs_mbedtls));
+        SV* referent = newSV(sizeof(xs_mbedtls));
+        SvPOK_on(referent);
         sv_2mortal(referent);
 
         xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX(referent);
@@ -565,6 +630,7 @@ _new(SV* classname, SV* trust_store_path_sv = NULL)
 void
 DESTROY(SV* self_obj)
     CODE:
+        //fprintf(stderr, "DESTROY Net::mbedTLS at phase %s\n", PL_phase_names[PL_phase]);
         xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(self_obj) );
 
         _warn_if_global_destruct(self_obj, myconfig);
@@ -579,6 +645,8 @@ DESTROY(SV* self_obj)
 
         mbedtls_ctr_drbg_free( &myconfig->ctr_drbg );
         mbedtls_entropy_free( &myconfig->entropy );
+        //fprintf(stderr, "DESTROY Net::mbedTLS done\n");
+
 
 # ----------------------------------------------------------------------
 
@@ -789,6 +857,7 @@ error (SV* peer_obj)
 void
 DESTROY(SV* peer_obj)
     CODE:
+        //fprintf(stderr, "DESTROY %s at phase %s\n", SvPVbyte_nolen(peer_obj), PL_phase_names[PL_phase]);
         xs_connection* myconn = (xs_connection*) SvPVX( SvRV(peer_obj) );
 
         _warn_if_global_destruct(peer_obj, myconn);

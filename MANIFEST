@@ -20,6 +20,7 @@ lib/Net/mbedTLS/X/mbedTLS.pm
 lib/Net/mbedTLS/X/mbedTLS/x509VerificationFailed.pm
 mbedTLS.xs
 ppport.h
+round_trip_net_ssleay.pl
 t/anyevent_handshake.t
 t/ioasync_handshake.t
 t/round_trip.t
