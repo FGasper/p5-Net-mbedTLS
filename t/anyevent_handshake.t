@@ -6,6 +6,12 @@ use warnings;
 use Test::More;
 use Test::FailWarnings;
 
+BEGIN {
+    eval { require AnyEvent; 1 } or do {
+        plan skip_all => "require(AnyEvent): $@";
+    };
+}
+
 use Net::mbedTLS;
 use Net::mbedTLS::AnyEvent;
 

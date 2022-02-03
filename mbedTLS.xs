@@ -879,7 +879,11 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
 
         xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(mbedtls_obj) );
 
-        _load_trust_store_if_needed(aTHX_ myconfig);
+        bool need_trust_store = !SvOK(authmode_sv) || (SvIV(authmode_sv) != MBEDTLS_SSL_VERIFY_NONE);
+
+        if (need_trust_store) {
+            _load_trust_store_if_needed(aTHX_ myconfig);
+        }
 
         RETVAL = _set_up_connection_object(aTHX_ myconfig, sizeof(xs_client), classname, MBEDTLS_SSL_IS_CLIENT, mbedtls_obj, filehandle, fd);
 
@@ -893,7 +897,9 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* servern
             _mbedtls_err_croak(aTHX_ "set SNI string", result, NULL);
         }
 
-        mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
+        if (need_trust_store) {
+            mbedtls_ssl_conf_ca_chain( &myconn->conf, &myconfig->cacert, NULL );
+        }
 
         if (SvOK(authmode_sv)) {
             mbedtls_ssl_conf_authmode( &myconn->conf, SvIV(authmode_sv) );
@@ -911,7 +917,8 @@ _new(const char* classname, SV* mbedtls_obj, SV* filehandle, int fd, SV* own_cer
     CODE:
         xs_mbedtls* myconfig = (xs_mbedtls*) SvPVX( SvRV(mbedtls_obj) );
 
-        _load_trust_store_if_needed(aTHX_ myconfig);
+        // We don’t currently support client certificates.
+        // _load_trust_store_if_needed(aTHX_ myconfig);
 
         RETVAL = _set_up_connection_object(aTHX_ myconfig, sizeof(xs_server), classname, MBEDTLS_SSL_IS_SERVER, mbedtls_obj, filehandle, fd);
 
