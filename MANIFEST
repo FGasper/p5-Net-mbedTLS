@@ -6,6 +6,7 @@ cpanfile
 examples/test.pl
 examples/test_async.pl
 examples/test_server.pl
+examples/tied_handshake.t
 lib/Net/mbedTLS.pm
 lib/Net/mbedTLS/AnyEvent.pm
 lib/Net/mbedTLS/Async.pm
@@ -25,4 +26,3 @@ round_trip_net_ssleay.pl
 t/anyevent_handshake.t
 t/ioasync_handshake.t
 t/round_trip.t
-t/tied_handshake.t
