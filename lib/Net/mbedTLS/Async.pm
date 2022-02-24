@@ -74,26 +74,27 @@ Like C<read()> in L<Net::mbedTLS::Connection>.
 =cut
 
 sub read_any {
-    splice @_, 1, 0, 1;
+    splice @_, 1, 0, 1, 1;
 
     &_read;
 }
 
-=head2 promise($count) = I<OBJ>->read_all( $OUTPUT_BUFFER )
+=head2 promise() = I<OBJ>->read_all( $OUTPUT_BUFFER )
 
 Like C<read_any()> above but won’t resolve until the entire
-$OUTPUT_BUFFER has been written to.
+$OUTPUT_BUFFER has been written to. The returned promise
+resolves empty.
 
 =cut
 
 sub read_all {
-    splice @_, 1, 0, length $_[1];
+    splice @_, 1, 0, length $_[1], 0;
 
     &_read;
 }
 
 sub _read {
-    my ($self, $min) = @_;
+    my ($self, $min, $resolve_with_length_yn) = @_;
 
     my $tls = $self->[0];
 
@@ -117,7 +118,7 @@ sub _read {
                     $$pos_sr += $got;
 
                     if ($$pos_sr >= $read_queue_ar->[0][_MIN_IDX]) {
-                        $read_queue_ar->[0][0]->resolve($$pos_sr);
+                        $read_queue_ar->[0][0]->resolve( $resolve_with_length_yn ? $$pos_sr : ());
                         shift @$read_queue_ar;
                     }
 
@@ -140,18 +141,33 @@ sub _read {
     return $d->promise();
 }
 
+=head2 promise($count) = I<OBJ>->write_any( $OUTPUT_BUFFER )
+
+Writes as much of $OUTPUT_BUFFER as possible. The returned promise
+resolves with the number of bytes written. (It won’t resolve until
+I<at least> one byte is written.)
+
+=cut
+
 sub write_any {
-    push @_, 1;
+    push @_, 1, 1;
     &_write;
 }
 
+=head2 promise() = I<OBJ>->write_all( $OUTPUT_BUFFER )
+
+Like C<write_any()>, but the returned promise won’t resolve until
+all of $OUTPUT_BUFFER is sent. The returned promise resolves empty.
+
+=cut
+
 sub write_all {
-    push @_, length $_[1];
+    push @_, length $_[1], 0;
     &_write;
 }
 
 sub _write {
-    my ($self, $payload, $min) = @_;
+    my ($self, $payload, $min, $resolve_length_yn) = @_;
 
     my $d = Promise::XS::deferred();
 
@@ -174,7 +190,7 @@ sub _write {
                     $$pos_sr += $sent;
 
                     if ($$pos_sr >= $write_queue_ar->[0][_MIN_IDX]) {
-                        $write_queue_ar->[0][0]->resolve($$pos_sr);
+                        $write_queue_ar->[0][0]->resolve( $resolve_length_yn ? $$pos_sr : () );
                         shift @$write_queue_ar;
                     }
 
