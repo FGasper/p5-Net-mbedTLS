@@ -51,6 +51,14 @@ its Perl binding. Both are rather large, though.
 This distribution allows use of mbedTLS, a smaller, simpler TLS library,
 from Perl.
 
+=head1 BENEFITS & LIABILITIES
+
+This library, like mbedTLS itself, minimizes memory usage at
+the cost of performance. After a simple TLS handshake with this library
+Perl’s memory usage is about 6.5 MiB lower than when using
+L<IO::Socket::SSL> for the same. Of course, OpenSSL does the handshake
+about 18 times faster.
+
 =head1 AVAILABLE FUNCTIONALITY
 
 For now this module largely just exposes the ability to do TLS. mbedTLS
@@ -66,7 +74,7 @@ This library can link to mbedTLS in several ways:
 
 =item * Dynamic, to system library (default): This assumes that
 mbedTLS is available from some system-default location (e.g.,
-F</usr/local>).
+F</usr>).
 
 =item * Dynamic, to a specific path: To do this set
 C<NET_MBEDTLS_MBEDTLS_BASE> in your environment to whatever directory
@@ -85,7 +93,7 @@ cost of always using the same library version.
 mbedTLS, alas, as of this writing does not support
 L<pkg-config|https://www.freedesktop.org/wiki/Software/pkg-config/>.
 (L<GitHub issue|https://github.com/ARMmbed/mbedtls/issues/228>) If that
-changes then dynamic linking will become more reliable.
+changes then dynamic linking may become more reliable.
 
 =cut
 
