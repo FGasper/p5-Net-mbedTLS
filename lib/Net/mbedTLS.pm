@@ -56,8 +56,8 @@ from Perl.
 This library, like mbedTLS itself, minimizes memory usage at
 the cost of performance. After a simple TLS handshake with this library
 Perl’s memory usage is about 6.5 MiB lower than when using
-L<IO::Socket::SSL> for the same. Of course, OpenSSL does the handshake
-about 18 times faster.
+L<IO::Socket::SSL> for the same. On the other hand, OpenSSL does the
+handshake about 18 times faster.
 
 =head1 AVAILABLE FUNCTIONALITY
 
