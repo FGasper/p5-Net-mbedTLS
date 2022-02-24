@@ -101,7 +101,7 @@ my $tlsserver = $tls->create_server(
     },
 );
 
-print "made server\n";
+print "Made server; now type something into OpenSSL …\n";
 
 my $output = "\0" x 100;
 my $got = $tlsserver->read($output);
