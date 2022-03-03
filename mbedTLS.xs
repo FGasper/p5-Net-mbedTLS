@@ -450,7 +450,7 @@ SV* _create_sni_cb_ctx(pTHX_ SV* server_sv_referent, SV* servername) {
     mPUSHs(servername);
     PUTBACK;
 
-    int count = call_method( "new", G_SCALAR );
+    int count = call_method( "_new", G_SCALAR );
     PERL_UNUSED_ARG(count);
 
     assert(count == 1);

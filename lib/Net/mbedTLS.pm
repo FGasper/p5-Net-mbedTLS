@@ -178,6 +178,21 @@ To abort the session without a warning, return -1.
 All other outcomes of this callback tell mbedTLS to continue the
 TLS handshake.
 
+=item * C<key_and_certs> - A reference to an array of key and certs.
+The array’s contents may be either:
+
+=over
+
+=item * 1 item: Concatenated PEM documents.
+
+=item * 2+ items: The key, then certificates. Any item may be in
+PEM or DER format, and any non-initial items (i.e., certificate items)
+may contain multiple certifictes.
+
+=back
+
+=back
+
 =cut
 
 sub create_server {
@@ -227,11 +242,5 @@ C<SSL_VERIFY_REQUIRED>
 =cut
 
 #----------------------------------------------------------------------
-
-=head1 AUTHOR & COPYRIGHT
-
-Copyright 2021 Gasper Software Consulting.
-
-=cut
 
 1;
