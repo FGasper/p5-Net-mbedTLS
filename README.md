@@ -117,6 +117,13 @@ to set the necessary parameters for the new TLS session.
     All other outcomes of this callback tell mbedTLS to continue the
     TLS handshake.
 
+- `key_and_certs` - A reference to an array of key and certs.
+The array’s contents may be either:
+    - 1 item: Concatenated PEM documents.
+    - 2+ items: The key, then certificates. Any item may be in
+    PEM or DER format, and any non-initial items (i.e., certificate items)
+    may contain multiple certifictes.
+
 # CONSTANTS
 
 These come from mbedTLS:
@@ -126,15 +133,3 @@ These come from mbedTLS:
 `MBEDTLS_ERR_SSL_CLIENT_RECONNECT`
 - Verify modes: `SSL_VERIFY_NONE`, `SSL_VERIFY_OPTIONAL`,
 `SSL_VERIFY_REQUIRED`
-
-# AUTHOR & COPYRIGHT
-
-Copyright 2021 Gasper Software Consulting.
-
-# POD ERRORS
-
-Hey! **The above document had some coding errors, which are explained below:**
-
-- Around line 212:
-
-    You forgot a '=back' before '=head1'
