@@ -14,6 +14,25 @@ env:
    PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
+  linux-static:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@main
+        with:
+            submodules: recursive
+      - run: sudo apt update && sudo apt install -y cmake
+      - name: Build mbedTLS
+        run: mkdir mbedtls && cd mbedtls && git clone https://github.com/Mbed-TLS/mbedtls && cmake . && make
+      - name: Install CPAN Dependencies
+        run: cpanm --notest --installdeps --with-configure --with-develop --verbose .
+      - name: perl Makefile.PL
+        run: NET_MBEDTLS_MBEDTLS_BASE=mbedtls NET_MBEDTLS_LINKING=static perl Makefile.PL
+      - name: make
+        run: make
+      - name: Run Tests
+        run: prove -wlvmb t
+
   linux:
     runs-on: ubuntu-latest
 
@@ -46,7 +65,7 @@ jobs:
       - run: apt update && apt install -y libmbedtls-dev
       - name: perl -V
         run: perl -V
-      - name: Install Dependencies
+      - name: Install CPAN Dependencies
         run: cpanm --notest --installdeps --with-configure --with-develop --verbose .
       - name: perl Makefile.PL
         run: perl Makefile.PL
@@ -62,11 +81,11 @@ jobs:
       - uses: actions/checkout@main
         with:
             submodules: recursive
-      - name: Set up Perl
+      - name: Install OS Dependencies
         run: brew install cpanminus mbedtls
       - name: perl -V
         run: perl -V
-      - name: Install Dependencies
+      - name: Install CPAN Dependencies
         run: cpanm --verbose --notest --installdeps --with-develop --with-configure .
       - name: perl Makefile.PL
         run: perl Makefile.PL
