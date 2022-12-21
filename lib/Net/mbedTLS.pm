@@ -85,6 +85,10 @@ also set C<NET_MBEDTLS_LINKING> to C<static> in your environment.
 
 =back
 
+NB: In the latter two cases your compiler has to generate
+I<position-independent> code when building mbedTLS. GCC’s C<-fPIC>
+flag does this. (See this distribution’s CI tests for an example.)
+
 Dynamic linking allows Net::mbedTLS to use the most recent
 (compatible) mbedTLS but requires you to have a shared mbedTLS
 available, whereas static linking alleviates that dependency at the
