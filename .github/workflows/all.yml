@@ -23,7 +23,7 @@ jobs:
             submodules: recursive
       - run: sudo apt update && sudo apt install -y cmake
       - name: Build mbedTLS
-        run: mkdir mbedtls && cd mbedtls && git clone https://github.com/Mbed-TLS/mbedtls && cmake . && make
+        run: git clone https://github.com/Mbed-TLS/mbedtls && cd mbedtls && cmake . && make
       - name: Install CPAN Dependencies
         run: cpanm --notest --installdeps --with-configure --with-develop --verbose .
       - name: perl Makefile.PL
