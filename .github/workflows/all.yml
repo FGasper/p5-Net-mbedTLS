@@ -32,7 +32,7 @@ jobs:
             submodules: recursive
       - run: sudo apt update && sudo apt install -y cmake cpanminus
       - name: Build mbedTLS
-        run: git clone https://github.com/Mbed-TLS/mbedtls && cd mbedtls && cmake . && make
+        run: git clone https://github.com/Mbed-TLS/mbedtls && cd mbedtls && cmake -D CMAKE_C_FLAGS=-fPIC . && make
       - name: Install CPAN Dependencies
         run: cpanm --sudo --notest --installdeps --with-configure --with-develop --verbose .
       - name: perl Makefile.PL
