@@ -11,3 +11,4 @@ nytprof.out
 *.gc*
 cover_db/
 *.tar.gz
+mbedtls/

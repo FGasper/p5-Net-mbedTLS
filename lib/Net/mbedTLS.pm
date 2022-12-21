@@ -8,7 +8,7 @@ our $VERSION;
 use XSLoader ();
 
 BEGIN {
-    $VERSION = '0.01_01';
+    $VERSION = '0.01';
     XSLoader::load( __PACKAGE__, $VERSION );
 }
 
@@ -61,9 +61,9 @@ handshake (as of this writing) about 18 times faster.
 =head1 AVAILABLE FUNCTIONALITY
 
 For now this module largely just exposes the ability to do TLS. mbedTLS
-itself exposes a good deal more functionality (e.g., raw crypto,
-configurable ciphers); if you want that stuff, file a feature request.
-(Ideally send a patch.)
+itself exposes a good deal more functionality like raw crypto and
+configurable ciphers; if you want that stuff, file a feature request.
+(A patch with a test is highly desirable!)
 
 =head1 BUILDING/LINKING
 
@@ -84,10 +84,6 @@ also set C<NET_MBEDTLS_LINKING> to C<static> in your environment.
 
 =back
 
-NB: In the latter two cases your compiler has to generate
-I<position-independent> code when building mbedTLS. GCC’s C<-fPIC>
-flag does this. (See this distribution’s CI tests for an example.)
-
 Dynamic linking allows Net::mbedTLS to use the most recent
 (compatible) mbedTLS but requires you to have a shared mbedTLS
 available, whereas static linking alleviates that dependency at the
@@ -97,6 +93,10 @@ mbedTLS, alas, as of this writing does not support
 L<pkg-config|https://www.freedesktop.org/wiki/Software/pkg-config/>.
 (L<GitHub issue|https://github.com/ARMmbed/mbedtls/issues/228>) If that
 changes then dynamic linking may become more reliable.
+
+NB: mbedTLS I<must> be built with I<position-independent> code. If you’re
+building your own mbedTLS then you’ll need to configure that manually.
+GCC’s C<-fPIC> flag does this; see this distribution’s CI tests for an example.
 
 =cut
 
@@ -243,6 +243,14 @@ C<SSL_VERIFY_REQUIRED>
 =back
 
 =cut
+
+=head1 SEE ALSO
+
+L<Net::SSLeay>, an XS binding to OpenSSL, is Perl’s de facto standard TLS
+library.
+
+L<IO::Socket::SSL> wraps Net::SSLeay with logic to make TLS I<almost> as
+easy to use as plain TCP.
 
 #----------------------------------------------------------------------
 

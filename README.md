@@ -45,9 +45,9 @@ handshake (as of this writing) about 18 times faster.
 # AVAILABLE FUNCTIONALITY
 
 For now this module largely just exposes the ability to do TLS. mbedTLS
-itself exposes a good deal more functionality (e.g., raw crypto,
-configurable ciphers); if you want that stuff, file a feature request.
-(Ideally send a patch.)
+itself exposes a good deal more functionality like raw crypto and
+configurable ciphers; if you want that stuff, file a feature request.
+(A patch with a test is highly desirable!)
 
 # BUILDING/LINKING
 
@@ -62,10 +62,6 @@ contains mbedTLS’s `include` and `lib` (or `library`) directories.
 - Static, to a specific path: Like the previous one, but
 also set `NET_MBEDTLS_LINKING` to `static` in your environment.
 
-NB: In the latter two cases your compiler has to generate
-_position-independent_ code when building mbedTLS. GCC’s `-fPIC`
-flag does this. (See this distribution’s CI tests for an example.)
-
 Dynamic linking allows Net::mbedTLS to use the most recent
 (compatible) mbedTLS but requires you to have a shared mbedTLS
 available, whereas static linking alleviates that dependency at the
@@ -75,6 +71,10 @@ mbedTLS, alas, as of this writing does not support
 [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/).
 ([GitHub issue](https://github.com/ARMmbed/mbedtls/issues/228)) If that
 changes then dynamic linking may become more reliable.
+
+NB: mbedTLS _must_ be built with _position-independent_ code. If you’re
+building your own mbedTLS then you’ll need to configure that manually.
+GCC’s `-fPIC` flag does this; see this distribution’s CI tests for an example.
 
 # METHODS
 
@@ -136,6 +136,16 @@ These come from mbedTLS:
 `MBEDTLS_ERR_SSL_CLIENT_RECONNECT`
 - Verify modes: `SSL_VERIFY_NONE`, `SSL_VERIFY_OPTIONAL`,
 `SSL_VERIFY_REQUIRED`
+
+# SEE ALSO
+
+[Net::SSLeay](https://metacpan.org/pod/Net%3A%3ASSLeay), an XS binding to OpenSSL, is Perl’s de facto standard TLS
+library.
+
+[IO::Socket::SSL](https://metacpan.org/pod/IO%3A%3ASocket%3A%3ASSL) wraps Net::SSLeay with logic to make TLS _almost_ as
+easy to use as plain TCP.
+
+\#----------------------------------------------------------------------
 
 # LICENSE & COPYRIGHT
 
