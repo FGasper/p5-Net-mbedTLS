@@ -72,7 +72,7 @@ mbedTLS, alas, as of this writing does not support
 ([GitHub issue](https://github.com/ARMmbed/mbedtls/issues/228)) If that
 changes then dynamic linking may become more reliable.
 
-NB: mbedTLS _must_ be built with _position-independent_ code. If you’re
+NB: mbedTLS **MUST** be built with _position-independent_ code. If you’re
 building your own mbedTLS then you’ll need to configure that manually.
 GCC’s `-fPIC` flag does this; see this distribution’s CI tests for an example.
 

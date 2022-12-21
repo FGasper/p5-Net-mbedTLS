@@ -94,7 +94,7 @@ L<pkg-config|https://www.freedesktop.org/wiki/Software/pkg-config/>.
 (L<GitHub issue|https://github.com/ARMmbed/mbedtls/issues/228>) If that
 changes then dynamic linking may become more reliable.
 
-NB: mbedTLS I<must> be built with I<position-independent> code. If you’re
+NB: mbedTLS B<MUST> be built with I<position-independent> code. If you’re
 building your own mbedTLS then you’ll need to configure that manually.
 GCC’s C<-fPIC> flag does this; see this distribution’s CI tests for an example.
 
@@ -243,6 +243,8 @@ C<SSL_VERIFY_REQUIRED>
 =back
 
 =cut
+
+#----------------------------------------------------------------------
 
 =head1 SEE ALSO
 
