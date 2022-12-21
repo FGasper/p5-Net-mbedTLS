@@ -6,8 +6,8 @@ MYMETA.*
 .*.sw?
 Makefile
 pm_to_blib
-./mbedtls/
 nytprof/
 nytprof.out
 *.gc*
 cover_db/
+*.tar.gz
