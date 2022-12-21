@@ -14,20 +14,29 @@ env:
    PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
-  linux-static:
+  linux-custom-mbedtls:
     runs-on: ubuntu-latest
+
+    name: Linux (Latest mbedTLS, ${{ matrix.linking }}-linked)
+
+    strategy:
+      fail-fast: false
+      matrix:
+        linking:
+          - static
+          - dynamic
 
     steps:
       - uses: actions/checkout@main
         with:
             submodules: recursive
-      - run: sudo apt update && sudo apt install -y cmake
+      - run: sudo apt update && sudo apt install -y cmake cpanminus
       - name: Build mbedTLS
         run: git clone https://github.com/Mbed-TLS/mbedtls && cd mbedtls && cmake . && make
       - name: Install CPAN Dependencies
         run: cpanm --notest --installdeps --with-configure --with-develop --verbose .
       - name: perl Makefile.PL
-        run: NET_MBEDTLS_MBEDTLS_BASE=mbedtls NET_MBEDTLS_LINKING=static perl Makefile.PL
+        run: NET_MBEDTLS_MBEDTLS_BASE=mbedtls NET_MBEDTLS_LINKING=${{ matrix.linking }} perl Makefile.PL
       - name: make
         run: make
       - name: Run Tests
