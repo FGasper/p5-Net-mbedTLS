@@ -133,3 +133,13 @@ These come from mbedTLS:
 `MBEDTLS_ERR_SSL_CLIENT_RECONNECT`
 - Verify modes: `SSL_VERIFY_NONE`, `SSL_VERIFY_OPTIONAL`,
 `SSL_VERIFY_REQUIRED`
+
+# LICENSE & COPYRIGHT
+
+Copyright 2022 Gasper Software Consulting. All rights reserved.
+
+This library is licensed under the same terms as Perl itself.
+See [perlartistic](https://metacpan.org/pod/perlartistic).
+
+This library was originally a research project at
+[cPanel, L.L.C.](https://cpanel.net).

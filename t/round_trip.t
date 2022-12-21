@@ -21,8 +21,10 @@ eval { socketpair $cln, $srv, AF_UNIX, SOCK_STREAM, 0 } or do {
 
 $_->blocking(0) for ($cln, $srv);
 
-vec( my $cln_mask, fileno($cln), 1 ) = 1;
-vec( my $srv_mask, fileno($srv), 1 ) = 1;
+$_ = q<> for my ($cln_mask, $srv_mask);
+
+vec( $cln_mask, fileno($cln), 1 ) = 1;
+vec( $srv_mask, fileno($srv), 1 ) = 1;
 
 my $tls_cln = $mbedtls->create_client(
     $cln,

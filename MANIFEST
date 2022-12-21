@@ -1,4 +1,6 @@
+.github/workflows/all.yml
 .gitignore
+LICENSE
 MANIFEST
 Makefile.PL
 README.md
