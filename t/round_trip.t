@@ -10,11 +10,13 @@ use Net::mbedTLS;
 use Test::More;
 use Test::FailWarnings;
 
+use IO::Socket::UNIX;
+
 my $mbedtls = Net::mbedTLS->new();
 
 my ($cln, $srv);
 
-eval { socketpair $cln, $srv, AF_UNIX, SOCK_STREAM, 0 } or do {
+eval { ($cln, $srv) = IO::Socket::UNIX->socketpair(AF_UNIX, SOCK_STREAM, 0) } or do {
     my $err = $@;
     plan skip_all => "socketpair failed: $err";
 };
