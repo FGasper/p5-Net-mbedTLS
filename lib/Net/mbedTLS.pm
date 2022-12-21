@@ -45,8 +45,7 @@ Net::mbedTLS - L<mbedTLS|https://tls.mbed.org/> in Perl
 
 =head1 DESCRIPTION
 
-L<OpenSSL|https://openssl.org> is great, and so is L<Net::SSLeay>,
-its Perl binding. Both are rather large, though.
+L<OpenSSL|https://openssl.org> is great but rather large.
 
 This distribution allows use of mbedTLS, a smaller, simpler TLS library,
 from Perl.
@@ -57,7 +56,7 @@ This library, like mbedTLS itself, minimizes memory usage at
 the cost of performance. After a simple TLS handshake with this library
 Perl’s memory usage is about 6.5 MiB lower than when using
 L<IO::Socket::SSL> for the same. On the other hand, OpenSSL does the
-handshake about 18 times faster.
+handshake (as of this writing) about 18 times faster.
 
 =head1 AVAILABLE FUNCTIONALITY
 

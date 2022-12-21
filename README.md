@@ -29,8 +29,7 @@ Net::mbedTLS - [mbedTLS](https://tls.mbed.org/) in Perl
 
 # DESCRIPTION
 
-[OpenSSL](https://openssl.org) is great, and so is [Net::SSLeay](https://metacpan.org/pod/Net%3A%3ASSLeay),
-its Perl binding. Both are rather large, though.
+[OpenSSL](https://openssl.org) is great but rather large.
 
 This distribution allows use of mbedTLS, a smaller, simpler TLS library,
 from Perl.
@@ -41,7 +40,7 @@ This library, like mbedTLS itself, minimizes memory usage at
 the cost of performance. After a simple TLS handshake with this library
 Perl’s memory usage is about 6.5 MiB lower than when using
 [IO::Socket::SSL](https://metacpan.org/pod/IO%3A%3ASocket%3A%3ASSL) for the same. On the other hand, OpenSSL does the
-handshake about 18 times faster.
+handshake (as of this writing) about 18 times faster.
 
 # AVAILABLE FUNCTIONALITY
 
@@ -62,6 +61,10 @@ mbedTLS is available from some system-default location (e.g.,
 contains mbedTLS’s `include` and `lib` (or `library`) directories.
 - Static, to a specific path: Like the previous one, but
 also set `NET_MBEDTLS_LINKING` to `static` in your environment.
+
+NB: In the latter two cases your compiler has to generate
+_position-independent_ code when building mbedTLS. GCC’s `-fPIC`
+flag does this. (See this distribution’s CI tests for an example.)
 
 Dynamic linking allows Net::mbedTLS to use the most recent
 (compatible) mbedTLS but requires you to have a shared mbedTLS
