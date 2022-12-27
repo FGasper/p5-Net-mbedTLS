@@ -14,6 +14,21 @@ env:
    PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
+  linux-ioasync-no-anyevent:
+    runs-on: ubuntu-latest
+
+    name: Test IO::Async without AnyEvent
+
+    steps:
+      - uses: actions/checkout@main
+        with:
+            submodules: recursive
+      - run: sudo apt update && sudo apt install -y cmake cpanminus libmbedtls-dev
+      - name: Install CPAN Dependencies
+        run: cpanm --sudo --notest --installdeps --with-configure --verbose . IO::Async
+      - run: perl Makefile.PL
+      - run: make test
+
   linux-fail-without-mbedtls:
     runs-on: ubuntu-latest
 
