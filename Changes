@@ -2,7 +2,7 @@ Revision history for Perl extension Net::mbedTLS:
 
 0.02
 - Fixed IO::Async module not to require AnyEvent.
-- Fixed compatiblity with older perls (“current_sub” is no longer used).
+- Clarify Perl requirement (5.16+).
 - Silence a few useless warnings (replace “pTHX” with “tTHX aTHX”).
 - Added changelog.
 

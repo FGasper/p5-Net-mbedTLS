@@ -88,6 +88,8 @@ WriteMakefile(
 
     PMLIBDIRS => ['lib'],
 
+    MIN_PERL_VERSION => 5.016,
+
     META_MERGE => {
         'meta-spec' => { version => 2 },
         resources => {
