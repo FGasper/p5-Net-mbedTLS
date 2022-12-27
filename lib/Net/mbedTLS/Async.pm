@@ -3,9 +3,6 @@ package Net::mbedTLS::Async;
 use strict;
 use warnings;
 
-use feature 'current_sub';
-
-use AnyEvent;
 use Promise::XS;
 use Scalar::Util;
 
@@ -47,20 +44,21 @@ sub shake_hands {
     my $weak_self = $self;
     Scalar::Util::weaken($weak_self);
 
-    sub {
-        my $sub = __SUB__;
-
+    my $shake_cr;
+    $shake_cr = sub {
         $d->reject($@) if !eval {
             if ( my $ok = $tls->shake_hands() ) {
                 $d->resolve();
             }
             else {
-                $weak_self->_handle_nonfatal_error($tls, $sub);
+                $weak_self->_handle_nonfatal_error($tls, $shake_cr);
             }
 
             1;
         };
     }->();
+
+    Scalar::Util::weaken($shake_cr);
 
     return $d->promise()->finally(
         sub { $self->_unset_event_listener() },
@@ -108,8 +106,8 @@ sub _read {
         my $weak_self = $self;
         Scalar::Util::weaken($weak_self);
 
-        sub {
-            my $sub = __SUB__;
+        my $read_cr;
+        $read_cr = sub {
 
             my $ok = eval {
                 my $pos_sr = \$read_queue_ar->[0][_POS_IDX];
@@ -122,10 +120,10 @@ sub _read {
                         shift @$read_queue_ar;
                     }
 
-                    __SUB__->() if @$read_queue_ar;
+                    $read_cr->() if @$read_queue_ar;
                 }
                 else {
-                    $weak_self->_handle_nonfatal_error($tls, $sub);
+                    $weak_self->_handle_nonfatal_error($tls, $read_cr);
                 }
 
                 1;
@@ -136,6 +134,8 @@ sub _read {
                 $_->[0]->reject($err) for splice @$read_queue_ar;
             }
         }->();
+
+        Scalar::Util::weaken($read_cr);
     }
 
     return $d->promise();
@@ -180,8 +180,8 @@ sub _write {
         my $weak_self = $self;
         Scalar::Util::weaken($weak_self);
 
-        sub {
-            my $sub = __SUB__;
+        my $write_cr;
+        $write_cr = sub {
 
             my $ok = eval {
                 my $pos_sr = \$write_queue_ar->[0][_POS_IDX];
@@ -194,10 +194,10 @@ sub _write {
                         shift @$write_queue_ar;
                     }
 
-                    __SUB__->() if @$write_queue_ar;
+                    $write_cr->() if @$write_queue_ar;
                 }
                 else {
-                    $weak_self->_handle_nonfatal_error($tls, $sub);
+                    $weak_self->_handle_nonfatal_error($tls, $write_cr);
                 }
 
                 1;
@@ -208,6 +208,8 @@ sub _write {
                 $_->[0]->reject($err) for splice @$write_queue_ar;
             }
         }->();
+
+        Scalar::Util::weaken($write_cr);
     }
 }
 
