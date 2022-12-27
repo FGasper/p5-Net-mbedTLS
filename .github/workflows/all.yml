@@ -25,7 +25,8 @@ jobs:
             submodules: recursive
       - run: sudo apt update && sudo apt install -y cmake cpanminus libmbedtls-dev
       - name: Install CPAN Dependencies
-        run: cpanm --sudo --notest --installdeps --with-configure --verbose . IO::Async
+        run: cpanm --sudo --notest --installdeps --with-configure --verbose .
+      - run: cpanm --sudo --notest IO::Async
       - run: perl Makefile.PL
       - run: make test
 

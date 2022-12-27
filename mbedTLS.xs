@@ -78,14 +78,14 @@
 // ----------------------------------------------------------------------
 
 typedef struct {
-    pTHX;
+    tTHX aTHX;
     _XS_CONNECTION_PARTS
 } xs_connection;
 
 typedef xs_connection xs_client;
 
 typedef struct {
-    pTHX;
+    tTHX aTHX;
     _XS_CONNECTION_PARTS
 
     SV* sni_cb;
@@ -490,7 +490,7 @@ static int net_mbedtls_sni_callback(void *ctx, mbedtls_ssl_context *ssl, const u
     bool failed = true;
 
     if (SvTRUE(ERRSV)) {
-        POPs;   // cf. perldoc perlcall
+        PERL_UNUSED_VAR(POPs);   // cf. perldoc perlcall
         warn("SNI callback failed: %" SVf, ERRSV);
         goto end_sni_callback;
     }
