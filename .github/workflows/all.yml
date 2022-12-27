@@ -42,7 +42,7 @@ jobs:
       - name: Install CPAN Dependencies
         run: cpanm --sudo --notest --installdeps --with-configure --with-develop --verbose .
       - name: Ensure failure
-        run: ! perl Makefile.PL
+        run: '! perl Makefile.PL'
 
   linux-custom-mbedtls:
     runs-on: ubuntu-latest
