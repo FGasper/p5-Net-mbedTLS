@@ -42,7 +42,9 @@ sub _set_event_listener {
 sub _unset_event_listener {
     my ($self) = @_;
 
-    $OBJ_LOOP{$self}->remove( $OBJ_IO_HANDLE{$self} );
+    if ( my $handle = $OBJ_IO_HANDLE{$self} ) {
+        $OBJ_LOOP{$self}->remove($handle);
+    }
 
     return;
 }
