@@ -14,6 +14,21 @@ env:
    PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
 
 jobs:
+  linux-fail-without-mbedtls:
+    runs-on: ubuntu-latest
+
+    name: Ensure graceful failure if mbedTLS isn’t available
+
+    steps:
+      - uses: actions/checkout@main
+        with:
+            submodules: recursive
+      - run: sudo apt update && sudo apt install -y cmake cpanminus
+      - name: Install CPAN Dependencies
+        run: cpanm --sudo --notest --installdeps --with-configure --with-develop --verbose .
+      - name: Ensure failure
+        run: ! perl Makefile.PL
+
   linux-custom-mbedtls:
     runs-on: ubuntu-latest
 
