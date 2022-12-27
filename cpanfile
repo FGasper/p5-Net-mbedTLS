@@ -4,7 +4,6 @@ configure_requires 'autodie';
 configure_requires 'ExtUtils::CBuilder';
 configure_requires 'ExtUtils::MakeMaker::CPANfile';
 
-test_requires 'Test::DescribeMe';
 test_requires 'Test::FailWarnings';
 test_requires 'Mozilla::CA';
 

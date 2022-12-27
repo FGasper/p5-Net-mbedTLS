@@ -111,6 +111,19 @@ sub _determine_defines {
     my @defines;
 
     my @checks = (
+
+        # A hack to detect nonavailability of mbedTLS:
+        {
+            label => 'mbedTLS availability',
+            required => 1,
+            c => q[
+                #include <mbedtls/pk.h>
+                int main() {
+                    return 0;
+                }
+            ],
+        },
+
         {
             label => 'public net_socket.fd',
             define => 'NET_CONTEXT_FD_IS_PUBLIC',
@@ -221,6 +234,11 @@ sub _determine_defines {
                 include_dirs => \@include_dirs,
             );
         };
+
+        if ($check_hr->{'required'}) {
+            die "DEPENDENCY FAILED\n" if !$obj_file;
+            next;
+        }
 
         if ($obj_file) {
             push @defines, $check_hr->{'define'};
