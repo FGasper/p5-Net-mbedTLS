@@ -78,14 +78,18 @@
 // ----------------------------------------------------------------------
 
 typedef struct {
+#ifdef MULTIPLICITY
     tTHX aTHX;
+#endif
     _XS_CONNECTION_PARTS
 } xs_connection;
 
 typedef xs_connection xs_client;
 
 typedef struct {
+#ifdef MULTIPLICITY
     tTHX aTHX;
+#endif
     _XS_CONNECTION_PARTS
 
     SV* sni_cb;
